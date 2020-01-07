@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version = "1.0">
+<qresource>
+    <file>icons/SORSOGON.png</file>
+    <file>icons/side_panel.png</file>
+    <file>icons/side_panel_white.png</file>
+</qresource>
+</RCC>
