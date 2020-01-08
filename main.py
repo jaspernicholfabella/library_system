@@ -75,6 +75,9 @@ class Info_Dialogue(QDialog,info_ui):
     edit_id = 0
     infoType = ''
     operationType = ''
+    pdfjs_drive = os.getcwd()
+    PDFJS = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/viewer.html'
+    PDF = ''
 
     def __init__(self,parent=None):
         super(Info_Dialogue,self).__init__(parent)
@@ -94,6 +97,7 @@ class Info_Dialogue(QDialog,info_ui):
         conn = engine.connect()
 
         if self.infoType == 'govpub':
+            self.label.setText('Government Publication Info')
             self.tabWidget.setCurrentIndex(0)
             library = sqc.Database().library_publication
             s = library.select().where(library.c.pubid == self.edit_id)
@@ -106,12 +110,13 @@ class Info_Dialogue(QDialog,info_ui):
                 self.govpub_subject.setText(val[6])
                 self.govpub_department.setText(val[7])
                 self.govpub_place_issued.setText(val[8])
-                self.govpub_date_issued.setText(str(val[9]))
-                self.govpub_date_recieved.setText(str(val[10]))
-                self.govpub_date_archived.setVisible(False)
+                self.govpub_date_issued.setText(val[9].strftime('%m/%d/%Y'))
+                self.govpub_date_recieved.setText(val[10].strftime('%m/%d/%Y'))
+                self.govpub_date_archived.setText(val[12].strftime('%m/%d/%Y'))
                 self.govpub_description.setPlainText(val[11])
 
         elif self.infoType == 'lochis':
+            self.label.setText('Local History Info')
             self.tabWidget.setCurrentIndex(1)
             library = sqc.Database().library_localhistory
             s = library.select().where(library.c.id == self.edit_id)
@@ -121,10 +126,11 @@ class Info_Dialogue(QDialog,info_ui):
                 self.lochis_source.setText(val[2])
                 self.lochis_author_list.setText(val[5])
                 self.lochis_pages.setText(str(val[3]))
-                self.lochis_date_archived.setVisible(False)
+                self.lochis_date_archived.setText(val[8].strftime('%m/%d/%Y'))
                 self.lochis_description.setPlainText(val[7])
 
         elif self.infoType == 'periodicals':
+            self.label.setText('Periodicals Info')
             self.tabWidget.setCurrentIndex(2)
             library = sqc.Database().library_periodicals
             s = library.select().where(library.c.id == self.edit_id)
@@ -137,11 +143,12 @@ class Info_Dialogue(QDialog,info_ui):
                 self.periodicals_num.setText(str(val[6]))
                 self.periodicals_issn.setText(val[7])
                 self.periodicals_number_of_pages.setText(str(val[8]))
-                self.periodicals_pubdate.setText(str(val[9]))
-                self.periodicals_date_archived.setVisible(False)
+                self.periodicals_pubdate.setText(val[9].strftime('%m/%d/%Y'))
+                self.periodicals_date_archived.setText(val[11].strftime('%m/%d/%Y'))
                 self.periodicals_description.setPlainText(val[10])
 
         elif self.infoType == 'audiobook':
+            self.label.setText('REALIA Info')
             self.tabWidget.setCurrentIndex(3)
             library = sqc.Database().library_realia
             s = library.select().where(library.c.id == self.edit_id)
@@ -156,9 +163,8 @@ class Info_Dialogue(QDialog,info_ui):
                 self.audiobook_length.setText(str(val[4]))
                 self.audiobook_width.setText(str(val[5]))
                 self.audiobook_dimension.setText(val[6])
-                self.audiobook_date_archived.setVisible(False)
+                self.audiobook_date_archived.setText(val[12].strftime('%m/%d/%Y'))
                 self.audiobook_description.setPlainText(val[11])
-
 
         if self.operationType == 'view':
             self.info_cancel_button.setVisible(False)
@@ -201,17 +207,251 @@ class Info_Dialogue(QDialog,info_ui):
             self.audiobook_date_archived.setReadOnly(True)
             self.audiobook_description.setReadOnly(True)
 
+        elif self.operationType == 'edit':
+            self.label.setText('Update Book')
+            self.date_archived_widget.setVisible(False)
+            self.date_archived_widget_2.setVisible(False)
+            self.date_archived_widget_3.setVisible(False)
+            self.date_archived_widget_4.setVisible(False)
 
+    ##Archive
 
+    def archive_dictionary_refresh(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        archive_govpub_dict = {}
+        archive_lochis_dict = {}
+        archive_periodicals_dict={}
+        archive_realia_dict = {}
+        engine = sqc.Database().engine
+        conn = engine.connect()
+        library = sqc.Database().library_publication
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_govpub_dict.update({val[4]:
+            {   'pubid' : val[0],
+                'alias' : val[1],
+                'ordinance' : val[2],
+                'ordinanceno' : val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'department': val[7],
+                'placeissued' : val[8],
+                'dateissued' : val[9],
+                'daterecieved' : val[10],
+                'description' : val[11],
+                'datearchived': val[12]} })
 
+        library = sqc.Database().library_localhistory
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_lochis_dict.update({val[4]:
+            {  'id' : val[0],
+                'alias' : val[1],
+                'source': val[2],
+                'pages': val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'description' : val[7],
+                'datearchived' : val[8]} })
 
+        library = sqc.Database().library_periodicals
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_periodicals_dict.update({val[2]:
+            {
+            'id' : val[0],
+            'alias' : val[1],
+            'subject' : val[3],
+            'author' : val[4],
+            'volume' : val[5],
+            'periodiclano' : val[6],
+            'issn' : val[7],
+            'noofpages' : val[8],
+            'publicationdate' : val[9],
+            'description' : val[10],
+            'datearchived' : val[11]} })
 
+        library = sqc.Database().library_realia
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_realia_dict.update({val[2]:
+            {
+               'id' : val[0],
+               'alias' : val[1],
+               'subject' : val[3],
+               'length' : val[4],
+               'width' : val[5],
+               'dimension' : val[6],
+               'author' : val[7],
+               'noofcopies' : val[8],
+               'location' : val[9],
+               'series' : val[10],
+               'description' : val[11],
+               'datearchived' : val[12]} })
+
+    def archive_refresh(self):
+        global archive_doclist
+        global archive_options
+        global archive_web_engine
+        self.archive_dictionary_refresh()
+        archive_doclist.clear()
+        archive_options.setCurrentIndex(0)
+        archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
 
     def info_ok_button_action(self):
         if self.operationType == 'view':
             self.close()
         elif self.operationType == 'edit':
-            pass
+            engine = sqc.Database().engine
+            conn = engine.connect()
+
+            if self.infoType == 'govpub':
+                self.label.setText('Government Publication Info')
+                self.tabWidget.setCurrentIndex(0)
+                library = sqc.Database().library_publication
+                try:
+                    s = library.update().where(library.c.pubid == self.edit_id).\
+                        values(
+                            ordinance = self.govpub_ordinance.text(),
+                            ordinanceno = int(self.govpub_ordinance_num.text()),
+                            title = self.govpub_title.text(),
+                            author = self.govpub_author_list.text(),
+                            subject = self.govpub_subject.text(),
+                            department = self.govpub_department.text(),
+                            placeissued = self.govpub_place_issued.text(),
+                            dateissued= datetime.datetime.strptime(self.govpub_date_issued.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                            daterecieved = datetime.datetime.strptime(self.govpub_date_recieved.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                            description = self.govpub_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'lochis':
+                self.label.setText('Local History Info')
+                self.tabWidget.setCurrentIndex(1)
+                library = sqc.Database().library_localhistory
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                            title = self.lochis_title.text(),
+                            source = self.lochis_source.text(),
+                            pages = self.lochis_pages.text(),
+                            author = self.lochis_author_list.text(),
+                            description = self.lochis_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'periodicals':
+                self.label.setText('Periodicals Info')
+                self.tabWidget.setCurrentIndex(2)
+                library = sqc.Database().library_periodicals
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                        title = self.periodicals_title.text(),
+                        subject = self.periodicals_subject.text(),
+                        author = self.periodicals_author_list.text(),
+                        volume = self.periodicals_volume.text(),
+                        periodiclano = int(self.periodicals_num.text()),
+                        issn = self.periodicals_issn.text(),
+                        noofpages = int(self.periodicals_number_of_pages.text()),
+                        publicationdate = datetime.datetime.strptime(self.periodicals_pubdate.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                        description = self.periodicals_description.toPlainText(),
+                        datearchived = datetime.datetime.utcnow()
+                    )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'audiobook':
+                self.label.setText('REALIA Info')
+                self.tabWidget.setCurrentIndex(3)
+                library = sqc.Database().library_realia
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                        title = self.audiobook_title.text(),
+                        subject = self.audiobook_subject.text(),
+                        length = int(self.audiobook_length.text()),
+                        width = int(self.audiobook_width.text()),
+                        dimension = self.audiobook_dimension.text(),
+                        author = self.audiobook_author_list.text(),
+                        noofcopies = int(self.audiobook_number_of_copies.text()),
+                        location = self.audiobook_location.text(),
+                        series = self.audiobook_series.text(),
+                        description = self.audiobook_description.toPlainText(),
+                        datearchived = datetime.datetime.utcnow()
+                    )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+
+
 
     def info_cancel_button_action(self):
         self.close()
@@ -263,7 +503,14 @@ class MainApp(QMainWindow, ui):
     PDFJS = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/viewer.html'
     PDF = ''
     PDF_NOIMAGE = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/sample.pdf'
-
+    global archive_govpub_dict
+    global archive_lochis_dict
+    global archive_periodicals_dict
+    global archive_realia_dict
+    archive_govpub_dict = {}
+    archive_lochis_dict = {}
+    archive_periodicals_dict = {}
+    archive_realia_dict = {}
     def __init__(self):
         QMainWindow.__init__(self)
         self.setupUi(self)
@@ -277,6 +524,12 @@ class MainApp(QMainWindow, ui):
     def Handle_Globals(self):
         global settings_account_table
         settings_account_table = self.settings_account_table
+        global archive_doclist
+        archive_doclist = self.archive_doclist
+        global archive_options
+        archive_options = self.archive_options
+        global archive_web_engine
+        archive_web_engine = self.archive_web_engine
 
     def Handle_UI_Changes(self):
         ##first setup
@@ -340,6 +593,7 @@ class MainApp(QMainWindow, ui):
         self.archive_options.currentTextChanged.connect(self.archive_options_action)
         self.archive_doclist.doubleClicked.connect(self.archive_doclist_action)
         self.archive_info.clicked.connect(self.archive_info_action)
+        self.archive_update.clicked.connect(self.archive_update_action)
         QtWebEngineWidgets.QWebEngineProfile.defaultProfile().downloadRequested.connect(self.on_download_request)
 
     def home_admin_login_action(self):
@@ -1109,19 +1363,20 @@ class MainApp(QMainWindow, ui):
             msg.exec_()
 
     ##Archive
-    archive_govpub_dict = {}
-    archive_lochis_dict = {}
-    archive_periodicals_dict = {}
-    archive_realia_dict = {}
+
 
     def archive_dictionary_refresh(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
         engine = sqc.Database().engine
         conn = engine.connect()
         library = sqc.Database().library_publication
         s = library.select()
         s_value = conn.execute(s)
         for val in s_value:
-            self.archive_govpub_dict.update({val[4]:
+            archive_govpub_dict.update({val[4]:
             {   'pubid' : val[0],
                 'alias' : val[1],
                 'ordinance' : val[2],
@@ -1139,7 +1394,7 @@ class MainApp(QMainWindow, ui):
         s = library.select()
         s_value = conn.execute(s)
         for val in s_value:
-            self.archive_lochis_dict.update({val[4]:
+            archive_lochis_dict.update({val[4]:
             {  'id' : val[0],
                 'alias' : val[1],
                 'source': val[2],
@@ -1153,7 +1408,7 @@ class MainApp(QMainWindow, ui):
         s = library.select()
         s_value = conn.execute(s)
         for val in s_value:
-            self.archive_periodicals_dict.update({val[2]:
+            archive_periodicals_dict.update({val[2]:
             {
             'id' : val[0],
             'alias' : val[1],
@@ -1171,7 +1426,7 @@ class MainApp(QMainWindow, ui):
         s = library.select()
         s_value = conn.execute(s)
         for val in s_value:
-            self.archive_realia_dict.update({val[2]:
+            archive_realia_dict.update({val[2]:
             {
                'id' : val[0],
                'alias' : val[1],
@@ -1197,34 +1452,42 @@ class MainApp(QMainWindow, ui):
         self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
 
     def archive_options_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
         self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
         if self.archive_options.currentText() == 'Government Publication':
             self.archive_doclist.clear()
-            for key in self.archive_govpub_dict.keys():
+            for key in archive_govpub_dict.keys():
                 self.archive_doclist.addItem(key)
         elif self.archive_options.currentText() == 'Local History':
             self.archive_doclist.clear()
-            for key in self.archive_lochis_dict.keys():
+            for key in archive_lochis_dict.keys():
                 self.archive_doclist.addItem(key)
         elif self.archive_options.currentText() == 'Periodicals':
             self.archive_doclist.clear()
-            for key in self.archive_periodicals_dict.keys():
+            for key in archive_periodicals_dict.keys():
                 self.archive_doclist.addItem(key)
         elif self.archive_options.currentText() == 'REALIA':
             self.archive_doclist.clear()
-            for key in self.archive_realia_dict.keys():
+            for key in archive_realia_dict.keys():
                 self.archive_doclist.addItem(key)
 
     def archive_doclist_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
         dir = self.settings_sharedrive_loc.text()
         if self.archive_options.currentText() == 'Government Publication':
-            alias = self.archive_govpub_dict[self.archive_doclist.currentItem().text()]['alias']
+            alias = archive_govpub_dict[self.archive_doclist.currentItem().text()]['alias']
         elif self.archive_options.currentText() == 'Local History':
-            alias = self.archive_lochis_dict[self.archive_doclist.currentItem().text()]['alias']
+            alias = archive_lochis_dict[self.archive_doclist.currentItem().text()]['alias']
         elif self.archive_options.currentText() == 'Periodicals':
-            alias = self.archive_periodicals_dict[self.archive_doclist.currentItem().text()]['alias']
+            alias = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['alias']
         elif self.archive_options.currentText() == 'REALIA':
-            alias = self.archive_realia_dict[self.archive_doclist.currentItem().text()]['alias']
+            alias = archive_realia_dict[self.archive_doclist.currentItem().text()]['alias']
 
         path_to_pdf = os.path.abspath(dir+'\\'+alias+'.pdf')
         if os.path.exists(path_to_pdf):
@@ -1233,24 +1496,28 @@ class MainApp(QMainWindow, ui):
             self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF_NOIMAGE)))
 
     def archive_info_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
         try:
             if self.archive_options.currentText() == 'Government Publication':
-                id = self.archive_govpub_dict[self.archive_doclist.currentItem().text()]['pubid']
+                id = archive_govpub_dict[self.archive_doclist.currentItem().text()]['pubid']
                 d = Info_Dialogue(self)
                 d.show()
                 d.ShowDialogue(int(id),'govpub', operationType='view')
             elif self.archive_options.currentText() == 'Local History':
-                id = self.archive_lochis_dict[self.archive_doclist.currentItem().text()]['id']
+                id = archive_lochis_dict[self.archive_doclist.currentItem().text()]['id']
                 d = Info_Dialogue(self)
                 d.show()
                 d.ShowDialogue(int(id), 'lochis', operationType='view')
             elif self.archive_options.currentText() == 'Periodicals':
-                id = self.archive_periodicals_dict[self.archive_doclist.currentItem().text()]['id']
+                id = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['id']
                 d = Info_Dialogue(self)
                 d.show()
                 d.ShowDialogue(int(id), 'periodicals', operationType='view')
             elif self.archive_options.currentText() == 'REALIA':
-                id = self.archive_realia_dict[self.archive_doclist.currentItem().text()]['id']
+                id = archive_realia_dict[self.archive_doclist.currentItem().text()]['id']
                 d = Info_Dialogue(self)
                 d.show()
                 d.ShowDialogue(int(id), 'audiobook', operationType='view')
@@ -1262,7 +1529,39 @@ class MainApp(QMainWindow, ui):
             msg.setWindowTitle("Error")
             msg.exec_()
 
-
+    def archive_update_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        try:
+            if self.archive_options.currentText() == 'Government Publication':
+                id = archive_govpub_dict[self.archive_doclist.currentItem().text()]['pubid']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id),'govpub', operationType='edit')
+            elif self.archive_options.currentText() == 'Local History':
+                id = archive_lochis_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'lochis', operationType='edit')
+            elif self.archive_options.currentText() == 'Periodicals':
+                id = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'periodicals', operationType='edit')
+            elif self.archive_options.currentText() == 'REALIA':
+                id = archive_realia_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'audiobook', operationType='edit')
+        except:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Something Went Wrong!")
+            msg.setInformativeText('No Selection Made')
+            msg.setWindowTitle("Error")
+            msg.exec_()
 
 
 

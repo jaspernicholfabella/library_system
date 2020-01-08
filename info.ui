@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>556</width>
+    <width>561</width>
     <height>556</height>
    </rect>
   </property>
@@ -39,7 +39,7 @@
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>3</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -842,7 +842,7 @@ border-radius : 10;</string>
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="widget_18" native="true">
+           <widget class="QWidget" name="date_archived_widget" native="true">
             <property name="minimumSize">
              <size>
               <width>0</width>
@@ -1350,7 +1350,7 @@ border-radius : 10;</string>
            <number>0</number>
           </property>
           <item>
-           <widget class="QWidget" name="widget_24" native="true">
+           <widget class="QWidget" name="date_archived_widget_2" native="true">
             <property name="minimumSize">
              <size>
               <width>0</width>
@@ -2188,7 +2188,7 @@ border-radius : 10;</string>
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="widget_31" native="true">
+           <widget class="QWidget" name="date_archived_widget_3" native="true">
             <property name="minimumSize">
              <size>
               <width>0</width>
@@ -2539,7 +2539,7 @@ border-radius : 10;</string>
                 </font>
                </property>
                <property name="text">
-                <string>List of Authors : </string>
+                <string>List of Artists : </string>
                </property>
               </widget>
              </item>
@@ -3110,7 +3110,7 @@ border-radius : 10;</string>
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="widget_48" native="true">
+           <widget class="QWidget" name="date_archived_widget_4" native="true">
             <property name="minimumSize">
              <size>
               <width>0</width>
