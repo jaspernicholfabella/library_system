@@ -1,142 +1,20 @@
-from PyQt5 import QtCore,QtGui,QtWidgets,uic
-from PyQt5.QtGui import QIcon,QPixmap
-from PyQt5.uic import loadUiType
+import sys
 from PyQt5.QtWidgets import *
 from PyQt5.uic import loadUiType
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import sys
-import sqlconn as sqc
+from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets
 from sqlalchemy import asc
-import win32com.client
-import xlwings.constants
-import datetime
-from PyQt5.uic import loadUiType
-import os
+from fpdf import FPDF
+from PIL import Image
+import sqlconn as sqc
 import shutil
-import inflect
-ui,_=loadUiType('stock_inventory_system.ui')
-procurement_ui, _ = loadUiType('procurement.ui')
-accounts_ui, _ = loadUiType('accounts.ui')
-item_ui, _ = loadUiType('item.ui')
-department_ui, _ = loadUiType('department.ui')
+from collections import OrderedDict
+import datetime
+import os
+from pytz import timezone
 global settings_account_table
-global settings_department_table
-global price_list_table
-global gen_tab
-def find_cell(scsht, tofind, srow=1, scol=1, lrow=1, lcol=1, search_order='by_row', search_sheet='advance',
-              lookin='formulas'):
-    """
-    :param scsht: source sheet object #cannot be None
-    :param tofind: string #cannot be None
-    :param srow: start row, integer #default 1
-    :param scol: start column, integer #default 1
-    :param lrow: last row, integer, #default 1
-    :param lcol: last column, integer #default 1
-    :param search_order: 'by_row' or 'by_col', string #default 'by_row'
-    :param search_sheet: 'advance' or 'basic' if basic no lrow or lcol needed. #default is advance
-    :param lookin: 'formulas','values' or 'comments' #default formulas
-    :return: dict['row'] and dict['col']
-    """
-    search_order_dict = {'by_row': xlwings.constants.SearchOrder.xlByRows,
-                         'by_col': xlwings.constants.SearchOrder.xlByColumns}
-    lookin_dict = {'values': xlwings.constants.FindLookIn.xlValues,
-                   'formulas': xlwings.constants.FindLookIn.xlFormulas,
-                   'comments': xlwings.constants.FindLookIn.xlComments}
-    if search_sheet == 'advance':
-        cell = scsht.Range(scsht.Cells(srow, scol), scsht.Cells(lrow, lcol)).Find(What=tofind.strip(),
-                                                                                  LookAt=xlwings.constants.LookAt.xlWhole,
-                                                                                  LookIn=lookin_dict[lookin],
-                                                                                  SearchOrder=xlwings.constants.SearchOrder.xlByRows,
-                                                                                  MatchCase=False)
-        if cell is None:
-            cell = scsht.Range(scsht.Cells(srow, scol), scsht.Cells(lrow, lcol)).Find(What=tofind.strip(),
-                                                                                      LookAt=xlwings.constants.LookAt.xlPart,
-                                                                                      LookIn=lookin_dict[lookin],
-                                                                                      SearchOrder=search_order_dict[
-                                                                                          search_order],
-                                                                                      MatchCase=False)
-        print('{} at , row = {}, col = {}'.format(tofind, cell.Row, cell.Column))
-    elif search_sheet == 'basic':
-        cell = scsht.Cells.Find(What="*", After=scsht.Cells(1, 1), SearchOrder=search_order_dict[search_order],
-                                SearchDirection=xlwings.constants.SearchDirection.xlPrevious)
-    cellpos = {'row': cell.Row, 'col': cell.Column}
-    return cellpos
-
-def remove_non_digits(input):
-    output = ''.join(c for c in input if c.isdigit())
-    return output
-
-def remove_digits(input):
-    output = ''.join(c for c in input if c.isdigit() == False)
-    return output
-
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except:
-        return False
-
-
-class Item_Dialogue(QDialog,item_ui):
-    edit_id = 0
-    operationType = ''
-
-    def __init__(self,parent=None):
-        super(Item_Dialogue,self).__init__(parent)
-        self.setupUi(self)
-
-    def ShowDialogue(self,id,item,price,operationType=''):
-        self.item.setText(item)
-        self.price.setText(price)
-        self.edit_id = id
-        self.operationType = operationType
-        self.buttonBox.accepted.connect(self.ok_button)
-
-    def ok_button(self):
-        engine = sqc.Database().engine
-        pgso_price_list = sqc.Database().pgso_price_list
-        conn = engine.connect()
-
-        if self.operationType == 'edit':
-            self.item_label.setText('Edit Account')
-            s = pgso_price_list.update().where(pgso_price_list.c.id == self.edit_id).\
-                values(item = self.item.text(),
-                       price = self.price.text())
-            conn.execute(s)
-            self.show_price_list()
-
-        elif self.operationType == 'add':
-            self.item_label.setText('Add Account')
-            s = pgso_price_list.insert().values(
-                item=self.item.text(),
-                price=self.price.text())
-            conn.execute(s)
-            self.show_price_list()
-        conn.close()
-
-    def show_price_list(self):
-        global price_list_table
-        price_list_table.setRowCount(0)
-        engine = sqc.Database().engine
-        pgso_price_list = sqc.Database().pgso_price_list
-        conn= engine.connect()
-        #admin_table
-        s = pgso_price_list.select().order_by(asc(pgso_price_list.c.item))
-        s_value = conn.execute(s)
-        table = price_list_table
-        for val in s_value:
-            row_position = table.rowCount()
-            table.insertRow(row_position)
-            table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-            table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
-            table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
-            table.resizeColumnsToContents()
-        conn.close()
-    
-
-
+ui, _ = loadUiType('library.ui')
+accounts_ui, _ = loadUiType('admin.ui')
+info_ui, _ = loadUiType('info.ui')
 
 class Accounts_Dialogue(QDialog,accounts_ui):
     edit_id = 0
@@ -155,12 +33,12 @@ class Accounts_Dialogue(QDialog,accounts_ui):
 
     def ok_button(self):
         engine = sqc.Database().engine
-        pgso_admin = sqc.Database().pgso_admin
+        library_admin = sqc.Database().library_admin
         conn = engine.connect()
 
         if self.operationType == 'edit':
             self.account_label.setText('Edit Account')
-            s = pgso_admin.update().where(pgso_admin.c.userid == self.edit_id).\
+            s = library_admin.update().where(library_admin.c.userid == self.edit_id).\
                 values(username = self.username.text(),
                        password = self.password.text())
             conn.execute(s)
@@ -168,7 +46,7 @@ class Accounts_Dialogue(QDialog,accounts_ui):
 
         elif self.operationType == 'add':
             self.account_label.setText('Add Account')
-            s = pgso_admin.insert().values(
+            s = library_admin.insert().values(
                 username=self.username.text(),
                 password=self.password.text())
             conn.execute(s)
@@ -179,10 +57,10 @@ class Accounts_Dialogue(QDialog,accounts_ui):
         global settings_account_table
         settings_account_table.setRowCount(0)
         engine = sqc.Database().engine
-        pgso_admin = sqc.Database().pgso_admin
+        library_admin = sqc.Database().library_admin
         conn= engine.connect()
         #admin_table
-        s = pgso_admin.select().order_by(asc(pgso_admin.c.username))
+        s = library_admin.select().order_by(asc(library_admin.c.username))
         s_value = conn.execute(s)
         table = settings_account_table
         for val in s_value:
@@ -193,56 +71,425 @@ class Accounts_Dialogue(QDialog,accounts_ui):
             table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
         conn.close()
 
-class Department_Dialogue(QDialog,department_ui):
+class Info_Dialogue(QDialog,info_ui):
     edit_id = 0
+    infoType = ''
     operationType = ''
+    pdfjs_drive = os.getcwd()
+    PDFJS = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/viewer.html'
+    PDF = ''
 
     def __init__(self,parent=None):
-        super(Department_Dialogue,self).__init__(parent)
+        super(Info_Dialogue,self).__init__(parent)
         self.setupUi(self)
 
-    def ShowDialogue(self,id,type,name,operationType=''):
-        index = self.department_type.findText(type)
-        if index >= 0:
-            self.department_type.setCurrentIndex(index)
-
-        self.department_name.setText(name)
+    def ShowDialogue(self,id,infoType='',operationType = 'view'):
         self.edit_id = id
+        self.infoType = infoType
         self.operationType = operationType
-        self.buttonBox.accepted.connect(self.ok_button)
+        self.show_values()
+        self.info_ok_button.clicked.connect(self.info_ok_button_action)
+        self.info_cancel_button.clicked.connect(self.info_cancel_button_action)
+
+    def show_values(self):
+        self.tabWidget.tabBar().setVisible(False)
+        engine = sqc.Database().engine
+        conn = engine.connect()
+
+        if self.infoType == 'govpub':
+            self.label.setText('Government Publication Info')
+            self.tabWidget.setCurrentIndex(0)
+            library = sqc.Database().library_publication
+            s = library.select().where(library.c.pubid == self.edit_id)
+            s_value = conn.execute(s)
+            for val in s_value:
+                self.govpub_title.setText(val[4])
+                self.govpub_ordinance_num.setText(str(val[3]))
+                self.govpub_ordinance.setText(val[2])
+                self.govpub_author_list.setText(val[5])
+                self.govpub_subject.setText(val[6])
+                self.govpub_department.setText(val[7])
+                self.govpub_place_issued.setText(val[8])
+                self.govpub_date_issued.setText(val[9].strftime('%m/%d/%Y'))
+                self.govpub_date_recieved.setText(val[10].strftime('%m/%d/%Y'))
+                self.govpub_date_archived.setText(val[12].strftime('%m/%d/%Y'))
+                self.govpub_description.setPlainText(val[11])
+
+        elif self.infoType == 'lochis':
+            self.label.setText('Local History Info')
+            self.tabWidget.setCurrentIndex(1)
+            library = sqc.Database().library_localhistory
+            s = library.select().where(library.c.id == self.edit_id)
+            s_value = conn.execute(s)
+            for val in s_value:
+                self.lochis_title.setText(val[4])
+                self.lochis_source.setText(val[2])
+                self.lochis_author_list.setText(val[5])
+                self.lochis_pages.setText(str(val[3]))
+                self.lochis_date_archived.setText(val[8].strftime('%m/%d/%Y'))
+                self.lochis_description.setPlainText(val[7])
+
+        elif self.infoType == 'periodicals':
+            self.label.setText('Periodicals Info')
+            self.tabWidget.setCurrentIndex(2)
+            library = sqc.Database().library_periodicals
+            s = library.select().where(library.c.id == self.edit_id)
+            s_value = conn.execute(s)
+            for val in s_value:
+                self.periodicals_title.setText(val[2])
+                self.periodicals_subject.setText(val[3])
+                self.periodicals_author_list.setText(val[4])
+                self.periodicals_volume.setText(val[5])
+                self.periodicals_num.setText(str(val[6]))
+                self.periodicals_issn.setText(val[7])
+                self.periodicals_number_of_pages.setText(str(val[8]))
+                self.periodicals_pubdate.setText(val[9].strftime('%m/%d/%Y'))
+                self.periodicals_date_archived.setText(val[11].strftime('%m/%d/%Y'))
+                self.periodicals_description.setPlainText(val[10])
+
+        elif self.infoType == 'audiobook':
+            self.label.setText('REALIA Info')
+            self.tabWidget.setCurrentIndex(3)
+            library = sqc.Database().library_realia
+            s = library.select().where(library.c.id == self.edit_id)
+            s_value = conn.execute(s)
+            for val in s_value:
+                self.audiobook_title.setText(val[2])
+                self.audiobook_subject.setText(val[3])
+                self.audiobook_author_list.setText(val[7])
+                self.audiobook_number_of_copies.setText(str(val[8]))
+                self.audiobook_series.setText(val[10])
+                self.audiobook_location.setText(val[9])
+                self.audiobook_length.setText(str(val[4]))
+                self.audiobook_width.setText(str(val[5]))
+                self.audiobook_dimension.setText(val[6])
+                self.audiobook_date_archived.setText(val[12].strftime('%m/%d/%Y'))
+                self.audiobook_description.setPlainText(val[11])
+
+        if self.operationType == 'view':
+            self.info_cancel_button.setVisible(False)
+            self.govpub_title.setReadOnly(True)
+            self.govpub_ordinance_num.setReadOnly(True)
+            self.govpub_ordinance.setReadOnly(True)
+            self.govpub_author_list.setReadOnly(True)
+            self.govpub_subject.setReadOnly(True)
+            self.govpub_department.setReadOnly(True)
+            self.govpub_place_issued.setReadOnly(True)
+            self.govpub_date_issued.setReadOnly(True)
+            self.govpub_date_recieved.setReadOnly(True)
+            self.govpub_date_archived.setReadOnly(True)
+            self.govpub_description.setReadOnly(True)
+            self.lochis_title.setReadOnly(True)
+            self.lochis_source.setReadOnly(True)
+            self.lochis_author_list.setReadOnly(True)
+            self.lochis_pages.setReadOnly(True)
+            self.lochis_date_archived.setReadOnly(True)
+            self.lochis_description.setReadOnly(True)
+            self.periodicals_title.setReadOnly(True)
+            self.periodicals_subject.setReadOnly(True)
+            self.periodicals_author_list.setReadOnly(True)
+            self.periodicals_volume.setReadOnly(True)
+            self.periodicals_num.setReadOnly(True)
+            self.periodicals_issn.setReadOnly(True)
+            self.periodicals_number_of_pages.setReadOnly(True)
+            self.periodicals_pubdate.setReadOnly(True)
+            self.periodicals_date_archived.setReadOnly(True)
+            self.periodicals_description.setReadOnly(True)
+            self.audiobook_title.setReadOnly(True)
+            self.audiobook_subject.setReadOnly(True)
+            self.audiobook_author_list.setReadOnly(True)
+            self.audiobook_number_of_copies.setReadOnly(True)
+            self.audiobook_series.setReadOnly(True)
+            self.audiobook_location.setReadOnly(True)
+            self.audiobook_length.setReadOnly(True)
+            self.audiobook_width.setReadOnly(True)
+            self.audiobook_dimension.setReadOnly(True)
+            self.audiobook_date_archived.setReadOnly(True)
+            self.audiobook_description.setReadOnly(True)
+
+        elif self.operationType == 'edit':
+            self.label.setText('Update Book')
+            self.date_archived_widget.setVisible(False)
+            self.date_archived_widget_2.setVisible(False)
+            self.date_archived_widget_3.setVisible(False)
+            self.date_archived_widget_4.setVisible(False)
+
+    ##Archive
+
+    def archive_dictionary_refresh(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        archive_govpub_dict = {}
+        archive_lochis_dict = {}
+        archive_periodicals_dict={}
+        archive_realia_dict = {}
+        engine = sqc.Database().engine
+        conn = engine.connect()
+        library = sqc.Database().library_publication
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_govpub_dict.update({val[4]:
+            {   'pubid' : val[0],
+                'alias' : val[1],
+                'ordinance' : val[2],
+                'ordinanceno' : val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'department': val[7],
+                'placeissued' : val[8],
+                'dateissued' : val[9],
+                'daterecieved' : val[10],
+                'description' : val[11],
+                'datearchived': val[12]} })
+
+        library = sqc.Database().library_localhistory
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_lochis_dict.update({val[4]:
+            {  'id' : val[0],
+                'alias' : val[1],
+                'source': val[2],
+                'pages': val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'description' : val[7],
+                'datearchived' : val[8]} })
+
+        library = sqc.Database().library_periodicals
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_periodicals_dict.update({val[2]:
+            {
+            'id' : val[0],
+            'alias' : val[1],
+            'subject' : val[3],
+            'author' : val[4],
+            'volume' : val[5],
+            'periodiclano' : val[6],
+            'issn' : val[7],
+            'noofpages' : val[8],
+            'publicationdate' : val[9],
+            'description' : val[10],
+            'datearchived' : val[11]} })
+
+        library = sqc.Database().library_realia
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_realia_dict.update({val[2]:
+            {
+               'id' : val[0],
+               'alias' : val[1],
+               'subject' : val[3],
+               'length' : val[4],
+               'width' : val[5],
+               'dimension' : val[6],
+               'author' : val[7],
+               'noofcopies' : val[8],
+               'location' : val[9],
+               'series' : val[10],
+               'description' : val[11],
+               'datearchived' : val[12]} })
+
+    def archive_refresh(self):
+        global archive_doclist
+        global archive_options
+        global archive_web_engine
+        self.archive_dictionary_refresh()
+        archive_doclist.clear()
+        archive_options.setCurrentIndex(0)
+        archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
+
+    def info_ok_button_action(self):
+        if self.operationType == 'view':
+            self.close()
+        elif self.operationType == 'edit':
+            engine = sqc.Database().engine
+            conn = engine.connect()
+
+            if self.infoType == 'govpub':
+                self.label.setText('Government Publication Info')
+                self.tabWidget.setCurrentIndex(0)
+                library = sqc.Database().library_publication
+                try:
+                    s = library.update().where(library.c.pubid == self.edit_id).\
+                        values(
+                            ordinance = self.govpub_ordinance.text(),
+                            ordinanceno = int(self.govpub_ordinance_num.text()),
+                            title = self.govpub_title.text(),
+                            author = self.govpub_author_list.text(),
+                            subject = self.govpub_subject.text(),
+                            department = self.govpub_department.text(),
+                            placeissued = self.govpub_place_issued.text(),
+                            dateissued= datetime.datetime.strptime(self.govpub_date_issued.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                            daterecieved = datetime.datetime.strptime(self.govpub_date_recieved.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                            description = self.govpub_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'lochis':
+                self.label.setText('Local History Info')
+                self.tabWidget.setCurrentIndex(1)
+                library = sqc.Database().library_localhistory
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                            title = self.lochis_title.text(),
+                            source = self.lochis_source.text(),
+                            pages = self.lochis_pages.text(),
+                            author = self.lochis_author_list.text(),
+                            description = self.lochis_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'periodicals':
+                self.label.setText('Periodicals Info')
+                self.tabWidget.setCurrentIndex(2)
+                library = sqc.Database().library_periodicals
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                        title = self.periodicals_title.text(),
+                        subject = self.periodicals_subject.text(),
+                        author = self.periodicals_author_list.text(),
+                        volume = self.periodicals_volume.text(),
+                        periodiclano = int(self.periodicals_num.text()),
+                        issn = self.periodicals_issn.text(),
+                        noofpages = int(self.periodicals_number_of_pages.text()),
+                        publicationdate = datetime.datetime.strptime(self.periodicals_pubdate.text(),'%m/%d/%Y').replace(tzinfo=timezone('UTC')),
+                        description = self.periodicals_description.toPlainText(),
+                        datearchived = datetime.datetime.utcnow()
+                    )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+            elif self.infoType == 'audiobook':
+                self.label.setText('REALIA Info')
+                self.tabWidget.setCurrentIndex(3)
+                library = sqc.Database().library_realia
+                try:
+                    s = library.update().where(library.c.id == self.edit_id).\
+                        values(
+                        title = self.audiobook_title.text(),
+                        subject = self.audiobook_subject.text(),
+                        length = int(self.audiobook_length.text()),
+                        width = int(self.audiobook_width.text()),
+                        dimension = self.audiobook_dimension.text(),
+                        author = self.audiobook_author_list.text(),
+                        noofcopies = int(self.audiobook_number_of_copies.text()),
+                        location = self.audiobook_location.text(),
+                        series = self.audiobook_series.text(),
+                        description = self.audiobook_description.toPlainText(),
+                        datearchived = datetime.datetime.utcnow()
+                    )
+                    conn.execute(s)
+                    self.close()
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setText("Data Updated!")
+                    msg.setInformativeText('Government Publication Updated')
+                    msg.setWindowTitle("Information Box")
+                    msg.exec_()
+                    self.archive_refresh()
+                except:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText('Check all the values if in proper format specially the dates')
+                    msg.setWindowTitle("Database Insertion Error")
+                    msg.exec_()
+
+
+
+
+    def info_cancel_button_action(self):
+        self.close()
+
+
 
     def ok_button(self):
         engine = sqc.Database().engine
-        pgso_department = sqc.Database().pgso_department
+        library_admin = sqc.Database().library_admin
         conn = engine.connect()
 
         if self.operationType == 'edit':
-            self.department_label.setText('Edit Department')
-            s = pgso_department.update().where(pgso_department.c.id == self.edit_id).\
-                values(type = self.department_type.currentText(),
-                       name = self.department_name.text())
+            self.account_label.setText('Edit Account')
+            s = library_admin.update().where(library_admin.c.userid == self.edit_id).\
+                values(username = self.username.text(),
+                       password = self.password.text())
             conn.execute(s)
             self.show_settings()
 
         elif self.operationType == 'add':
-            self.department_label.setText('Add Department')
-            s = pgso_department.insert().values(
-                type=self.department_type.currentText(),
-                name=self.department_name.text())
+            self.account_label.setText('Add Account')
+            s = library_admin.insert().values(
+                username=self.username.text(),
+                password=self.password.text())
             conn.execute(s)
             self.show_settings()
         conn.close()
 
     def show_settings(self):
-        global settings_department_table
-        settings_department_table.setRowCount(0)
+        global settings_account_table
+        settings_account_table.setRowCount(0)
         engine = sqc.Database().engine
-        pgso_department = sqc.Database().pgso_department
+        library_admin = sqc.Database().library_admin
         conn= engine.connect()
         #admin_table
-        s = pgso_department.select().order_by(asc(pgso_department.c.type))
+        s = library_admin.select().order_by(asc(library_admin.c.username))
         s_value = conn.execute(s)
-        table = settings_department_table
+        table = settings_account_table
         for val in s_value:
             row_position = table.rowCount()
             table.insertRow(row_position)
@@ -251,247 +498,138 @@ class Department_Dialogue(QDialog,department_ui):
             table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
         conn.close()
 
-class Procurement_Dialogue(QDialog,procurement_ui):
-
-    def __init__(self,parent=None):
-        super(Procurement_Dialogue,self).__init__(parent)
-        self.setupUi(self)
-        self.Handle_UI()
-        self.Handle_Buttons()
-
-    def Handle_UI(self):
-        self.show_department_name()
-
-    def Handle_Buttons(self):
-        self.department_type.currentTextChanged.connect(self.show_department_name)
-        self.open_button.clicked.connect(self.open_button_action)
-        self.ok_button.clicked.connect(self.ok_button_action)
-        self.cancel_button.clicked.connect(lambda : self.close())
-
-    def show_department_name(self):
-        self.department_name.clear()
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_department = sqc.Database().pgso_department
-        s = pgso_department.select().where(pgso_department.c.type == self.department_type.currentText())
-        s_value = conn.execute(s)
-        for val in s_value:
-            self.department_name.addItem(val[2])
-
-    def open_button_action(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        stpfile, _ = QFileDialog.getOpenFileName(self, "Open STP File",
-                                                   "",
-                                                   "XL Files (*.xlsx);;All Files (*)", options=options)
-        self.attached_file.setText(stpfile)
-
-    def ok_button_action(self):
-        try:
-            excel = win32com.client.gencache.EnsureDispatch('Excel.Application')
-            scbk = excel.Workbooks.Open(r'{}'.format(self.attached_file.text()), ReadOnly=True)
-            scsht = scbk.Worksheets[1]
-            lrow = find_cell(scsht, '', search_order='by_row', search_sheet='basic')['row']
-            lcol = find_cell(scsht, '', search_order='by_col', search_sheet='basic')['col']
-            start_index = find_cell(scsht,'GENERAL DESCRIPTION',lrow=lrow,lcol=lcol)
-            end_row = find_cell(scsht,'NOTE: Technical Specifications for each Item',lrow=lrow,lcol=lcol)['row']
-            quantity_col = find_cell(scsht,'QUANTITY',lrow=lrow,lcol=lcol)['col']
-
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_department = sqc.Database().pgso_department
-            s = pgso_department.select().where(pgso_department.c.type == self.department_type.currentText()).\
-                where(pgso_department.c.name == self.department_name.currentText())
-            s_value = conn.execute(s)
-            id = 0
-            for val in s_value:
-                id = val[0]
-
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_procurement = sqc.Database().pgso_procurement
-            s = pgso_procurement.insert().values(
-                department_id = id,
-                date_archived = datetime.datetime.utcnow(),
-                status = 'pr'
-            )
-            conn.execute(s)
-            po_id = 0
-            s = pgso_procurement.select()
-            s_value = conn.execute(s)
-            for val in s_value :
-                po_id = val[0]
-            conn.close()
-
-            for row in range(start_index['row'] + 1,end_row):
-                col = start_index['col']
-                if scsht.Cells(row,col).Value is not None:
-                    description = str(scsht.Cells(row,col).Value)
-                    quantity = 0
-                    unit = ''
-                    try:
-                        quantity = int(remove_non_digits(str(scsht.Cells(row,quantity_col).Value)))
-                        unit = remove_digits(str(scsht.Cells(row,quantity_col).Value)).strip()
-                    except:
-                        pass
-
-
-
-                    engine2 = sqc.Database().engine
-                    conn2 = engine2.connect()
-                    price_list_dict = {}
-                    pgso_price_list = sqc.Database().pgso_price_list
-                    s= pgso_price_list.select()
-                    s_value = conn2.execute(s)
-
-                    for val in s_value:
-                        if is_number(val[2]):
-                            price_list_dict.update({val[1].strip().lower() : float(val[2])})
-
-                    try:
-                        unit_cost = price_list_dict[description.strip().lower()]
-                    except:
-                        unit_cost = 0
-
-                    pgso_procurement_data = sqc.Database().pgso_procurement_data
-                    s = pgso_procurement_data.insert().values(
-                        description = description,
-                        quantity = quantity,
-                        unit = unit,
-                        unit_cost = unit_cost,
-                        po_id = po_id,
-                    )
-                    conn2.execute(s)
-
-            scbk.Close(SaveChanges=False)
-            excel.Quit()
-
-            shutil.copyfile(os.path.abspath(self.attached_file.text()), os.path.abspath(os.getcwd() + '\\excel\\' + str(po_id) + '.xlsx'))
-
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Information)
-            msg.setText("Inserted")
-            msg.setInformativeText('Data Inserted to the Database')
-            msg.setWindowTitle("PGSO Purchase Request")
-            msg.exec_()
-            self.close()
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('Something Went Wrong , Do it Again')
-            msg.setWindowTitle("Error")
-            msg.exec_()
-            self.close()
-
-class MainApp(QMainWindow,ui):
-
+class MainApp(QMainWindow, ui):
+    pdfjs_drive = os.getcwd()
+    PDFJS = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/viewer.html'
+    PDF = ''
+    PDF_NOIMAGE = 'file:///' + pdfjs_drive.replace('\\', '/') + '/pdfjs/web/sample.pdf'
+    global archive_govpub_dict
+    global archive_lochis_dict
+    global archive_periodicals_dict
+    global archive_realia_dict
+    archive_govpub_dict = {}
+    archive_lochis_dict = {}
+    archive_periodicals_dict = {}
+    archive_realia_dict = {}
     def __init__(self):
         QMainWindow.__init__(self)
         self.setupUi(self)
+        self.show_settings()
         self.Handle_UI_Changes()
         self.Handle_Globals()
         self.Handle_Buttons()
 
+
+
     def Handle_Globals(self):
         global settings_account_table
         settings_account_table = self.settings_account_table
-        global settings_department_table
-        settings_department_table = self.settings_department_table
-        global price_list_table
-        price_list_table = self.price_list_table
+        global archive_doclist
+        archive_doclist = self.archive_doclist
+        global archive_options
+        archive_options = self.archive_options
+        global archive_web_engine
+        archive_web_engine = self.archive_web_engine
 
     def Handle_UI_Changes(self):
-        self.menu_widget.setVisible(False)
+        ##first setup
         self.tabWidget.tabBar().setVisible(False)
+        self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
         self.tabWidget.setCurrentIndex(0)
-        self.home_logo.setEnabled(False)
-        ##menu
-        self.menu_logo.setEnabled(False)
+        self.menu_widget.setVisible(False)
+        self.library_tab.tabBar().setVisible(False)
+        self.library_tab_refresh()
         ##settings
         self.settings_account_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.settings_account_table.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
         self.settings_account_table.setColumnHidden(0,True)
-        self.settings_department_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.settings_department_table.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
-        self.settings_department_table.setColumnHidden(0,True)
-        self.price_list_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.price_list_table.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
-        self.price_list_table.setColumnHidden(0,True)
-
-        ##pr
-        self.show_pr_name()
-        self.show_po_name()
-        ##genpr
-        self.gen_table_widget.setColumnHidden(0, True)
 
     def Handle_Buttons(self):
-        ##login
+        self.home_admin_login.clicked.connect(self.home_admin_login_action)
+        self.home_guest_login.clicked.connect(self.home_guest_login_action)
+        self.login_back.clicked.connect(lambda: self.tabWidget.setCurrentIndex(0))
+        ##menu
+        self.menu_logo.clicked.connect(lambda: self.tabWidget.setCurrentIndex(2))
+        self.menu_archive.clicked.connect(self.menu_archive_action)
+        self.menu_library.clicked.connect(self.menu_library_action)
+        self.menu_settings.clicked.connect(self.show_settings)
+        self.menu_logout.clicked.connect(self.menu_logout_action)
+        ##library
+        self.library_govpub.clicked.connect(self.library_govpub_action)
+        self.library_lochis.clicked.connect(self.library_lochis_action)
+        self.library_periodicals.clicked.connect(self.library_periodicals_action)
+        self.library_audiobook.clicked.connect(self.library_audiobook_action)
+        ##library_sub
+        self.govpub_cancel.clicked.connect(self.library_tab_refresh)
+        self.lochis_cancel.clicked.connect(self.library_tab_refresh)
+        self.periodicals_cancel.clicked.connect(self.library_tab_refresh)
+        self.audiobook_cancel.clicked.connect(self.library_tab_refresh)
+        #login
         self.login_button.clicked.connect(self.login_button_action)
         self.login_username.textChanged.connect(lambda: self.login_error_message.setText(''))
         self.login_password.textChanged.connect(lambda: self.login_error_message.setText(''))
-        ##menu
-        self.menu_logout.clicked.connect(self.menu_logout_action)
-        self.menu_transaction.clicked.connect(self.menu_transaction_action)
-        self.menu_settings.clicked.connect(self.menu_settings_action)
-        #transactionm
-        self.transaction_procurement.clicked.connect(self.transaction_procurement_action)
-        self.transaction_purchase_request.clicked.connect(self.transaction_purchase_request_action)
-        self.transaction_purchase_order.clicked.connect(self.transaction_purchase_order_action)
-        ##purchase_request
-        self.pr_generate.clicked.connect(self.pr_generate_action)
-        self.pr_type.currentTextChanged.connect(self.show_pr_name)
-        self.pr_type.currentTextChanged.connect(self.show_pr_list)
-        self.pr_name.currentTextChanged.connect(self.show_pr_list)
-        self.pr_open_in_excel.clicked.connect(self.pr_open_in_excel_action)
-        self.pr_delete.clicked.connect(self.pr_delete_action)
-        ##genpr
-        self.gen_cancel_button.clicked.connect(self.gen_cancel_button_action)
-        self.gen_purchase_order.clicked.connect(self.gen_purchase_order_action)
-        #purchase_order
-        self.po_type.currentTextChanged.connect(self.show_po_name)
-        self.po_type.currentTextChanged.connect(self.show_po_list)
-        self.po_name.currentTextChanged.connect(self.show_po_list)
-        self.po_edit.clicked.connect(self.po_edit_action)
-        self.po_generate_pr.clicked.connect(self.po_generate_pr_action)
-        self.po_generate_po.clicked.connect(self.po_generate_po_action)
-        self.po_delete.clicked.connect(self.po_delete_action)
-        ##settings
+        #settings
         self.settings_add_account.clicked.connect(self.settings_add_account_action)
-        self.settings_edit_account.clicked.connect(lambda : self.settings_edit_account_action(self.settings_account_table))
-        self.settings_delete_account.clicked.connect(lambda : self.settings_delete_account_action(self.settings_account_table))
-        self.settings_add_department.clicked.connect(self.settings_add_department_action)
-        self.settings_edit_department.clicked.connect(lambda : self.settings_edit_department_action(self.settings_department_table))
-        self.settings_delete_department.clicked.connect(lambda : self.settings_delete_department_action(self.settings_department_table))
-        ##price_list
-        self.menu_price_list.clicked.connect(self.menu_price_list_action)
-        self.price_list_add.clicked.connect(self.price_list_add_action)
-        self.price_list_edit.clicked.connect(lambda : self.price_list_edit_action(self.price_list_table))
-        self.price_list_delete.clicked.connect(lambda : self.price_list_delete_action(self.price_list_table))
-        self.price_list_search.textChanged.connect(self.price_list_search_action)
+        self.settings_edit_account.clicked.connect(lambda: self.settings_edit_account_action(self.settings_account_table))
+        self.settings_delete_account.clicked.connect(lambda: self.settings_delete_account_action(self.settings_account_table))
+        self.settings_edit_sharedrive.clicked.connect(self.settings_edit_sharedrive_action)
+        #govpub
+        self.govpub_upload.clicked.connect(self.govpub_upload_action)
+        self.govpub_add_author.clicked.connect(self.govpub_add_author_action)
+        self.govpub_save_button.clicked.connect(self.govpub_save_button_action)
+        #lochis
+        self.lochis_add_author.clicked.connect(self.lochis_add_author_action)
+        self.lochis_save_button.clicked.connect(self.lochis_save_button_action)
+        self.lochis_upload.clicked.connect(self.lochis_upload_action)
+        #periodicals
+        self.periodicals_add_author.clicked.connect(self.periodicals_add_author_action)
+        self.periodicals_save_button.clicked.connect(self.periodicals_save_button_action)
+        self.periodicals_upload.clicked.connect(self.periodicals_upload_action)
+        #audiobook
+        self.audiobook_add_author.clicked.connect(self.audiobook_add_author_action)
+        self.audiobook_save_button.clicked.connect(self.audiobook_save_button_action)
+        self.audiobook_upload.clicked.connect(self.audiobook_upload_action)
+        #archive
+        self.archive_options.currentTextChanged.connect(self.archive_options_action)
+        self.archive_doclist.doubleClicked.connect(self.archive_doclist_action)
+        self.archive_info.clicked.connect(self.archive_info_action)
+        self.archive_update.clicked.connect(self.archive_update_action)
+        QtWebEngineWidgets.QWebEngineProfile.defaultProfile().downloadRequested.connect(self.on_download_request)
 
-
-    def refresh_application(self):
-        self.menu_widget.setVisible(False)
-        self.tabWidget.setCurrentIndex(0)
+    def home_admin_login_action(self):
         self.login_username.setText('')
         self.login_password.setText('')
+        self.login_error_message.setText('')
+        self.tabWidget.setCurrentIndex(1)
 
-    ##login
+    def home_guest_login_action(self):
+        self.tabWidget.setCurrentIndex(2)
+        self.menu_widget.setVisible(True)
+        self.menu_library.setVisible(False)
+        self.menu_settings.setVisible(False)
+        self.archive_admin_widget.setVisible(False)
+        self.home_welcome.setText('Welcome Guest!')
+##LOGIN
+
     def login_button_action(self):
         username = self.login_username.text()
         password = self.login_password.text()
 
         engine = sqc.Database().engine
-        pgso_admin = sqc.Database().pgso_admin
+        library_admin = sqc.Database().library_admin
         conn = engine.connect()
-        s = pgso_admin.select()
+        s = library_admin.select()
         s_value = conn.execute(s)
 
         for val in s_value:
             if str(username).lower() == str(val[1]).lower() and str(password).lower() == str(val[2]).lower():
-                self.tabWidget.setCurrentIndex(1)
+                self.tabWidget.setCurrentIndex(2)
                 self.menu_widget.setVisible(True)
+                self.menu_library.setVisible(True)
+                self.menu_settings.setVisible(True)
+                self.archive_admin_widget.setVisible(True)
+                self.home_welcome.setText('Welcome Admin!')
+
             else:
                 self.login_username.setText('')
                 self.login_password.setText('')
@@ -499,360 +637,85 @@ class MainApp(QMainWindow,ui):
 
         conn.close()
 
-    ##menu
     def menu_logout_action(self):
-        self.refresh_application()
+        self.menu_widget.setVisible(False)
+        self.tabWidget.setCurrentIndex(0)
 
-    def menu_transaction_action(self):
-        self.tabWidget.setCurrentIndex(2)
 
-    def menu_settings_action(self):
-        self.tabWidget.setCurrentIndex(6)
-        self.show_settings()
 
-    ##transaction
-    def transaction_procurement_action(self):
-        d = Procurement_Dialogue(self)
-        d.show()
-
-    def transaction_purchase_request_action(self):
-        self.tabWidget.setCurrentIndex(3)
-        self.show_pr_list()
-
-    def transaction_purchase_order_action(self):
-        self.tabWidget.setCurrentIndex(5)
-        self.show_po_list()
-
-    ##pr
-    def show_pr_name(self):
-        self.pr_name.clear()
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_department = sqc.Database().pgso_department
-        s = pgso_department.select().where(pgso_department.c.type == self.pr_type.currentText())
-        s_value = conn.execute(s)
-        for val in s_value:
-            self.pr_name.addItem(val[2])
-
-    pr_dict = {}
-    def show_pr_list(self):
-        self.pr_list.clear()
-        self.pr_dict = {}
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_department = sqc.Database().pgso_department
-        s = pgso_department.select().where(pgso_department.c.type == self.pr_type.currentText()). \
-            where(pgso_department.c.name == self.pr_name.currentText())
-        s_value = conn.execute(s)
-        id = 0
-        for val in s_value:
-            id = val[0]
-
-        pgso_procurement = sqc.Database().pgso_procurement
-        s = pgso_procurement.select().where(pgso_procurement.c.department_id == id).where(pgso_procurement.c.status == 'pr')
-        s_value = conn.execute(s)
-
-        for val in s_value:
-            self.pr_dict.update({'{}_(#{})_{}'.format(self.pr_name.currentText(),val[0],val[2]) : val[0]})
-
-        for key in self.pr_dict.keys():
-            self.pr_list.addItem(key)
-
-    def pr_generate_action(self):
-        try:
-            self.tabWidget.setCurrentIndex(4)
-            self.show_gen_table_widget()
-        except:
-            pass
-
-    def show_gen_table_widget(self):
-        global gen_tab
-        gen_tab = 3
-        temp = self.pr_list.currentItem().text()
-        temp2 = temp.split('(')[0] +temp.split(')')[1]
-        self.gen_title.setText(temp2)
-        po_id = self.pr_dict[self.pr_list.currentItem().text()]
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_procurement_data = sqc.Database().pgso_procurement_data
-        s = pgso_procurement_data.select().where(pgso_procurement_data.c.po_id == po_id).order_by(pgso_procurement_data.c.description)
-        s_value = conn.execute(s)
-        table = self.gen_table_widget
-        table.setRowCount(0)
-        for val in s_value :
-            row_position = table.rowCount()
-            table.insertRow(row_position)
-            table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-            table.setItem(row_position, 1, QTableWidgetItem(str(val[3])))
-            table.setItem(row_position, 2, QTableWidgetItem(str(val[1])))
-            table.setItem(row_position, 3, QTableWidgetItem(str(val[2])))
-            table.setItem(row_position, 4, QTableWidgetItem(str(val[4])))
-            table.resizeColumnsToContents()
-            table.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
-
-    def pr_open_in_excel_action(self):
-        try:
-            os.startfile(os.getcwd() + '\\excel\\' + str(self.pr_dict[self.pr_list.currentItem().text()]) + '.xlsx')
-        except:
-            pass
-
-    def pr_delete_action(self):
-        try:
-            po_id = self.pr_dict[self.pr_list.currentItem().text()]
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_procurement = sqc.Database().pgso_procurement
-            s = pgso_procurement.delete().where(pgso_procurement.c.id == po_id)
-            conn.execute(s)
-            pgso_procurement_data = sqc.Database().pgso_procurement_data
-            s = pgso_procurement_data.delete().where(pgso_procurement_data.c.po_id == po_id)
-            conn.execute(s)
-            os.remove(os.getcwd() + '\\excel\\' + str(self.pr_dict[self.pr_list.currentItem().text()]) + '.xlsx')
-            self.show_pr_list()
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Information)
-            msg.setText("Success")
-            msg.setInformativeText('File Deleted Properly')
-            msg.setWindowTitle("Information")
-            msg.exec_()
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('Something went wrong in file deletion')
-            msg.setWindowTitle("Error")
-            msg.exec_()
-
-    def gen_purchase_order_action(self):
-        try:
-            table = self.gen_table_widget
-            end_row = table.rowCount()
-            if gen_tab == 3:
-                po_id = self.pr_dict[self.pr_list.currentItem().text()]
-            elif gen_tab == 5:
-                po_id = self.po_dict[self.po_list.currentItem().text()]
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_procurement = sqc.Database().pgso_procurement
-            pgso_procurement_data = sqc.Database().pgso_procurement_data
-            for i in range(0,end_row):
-                id = table.item(i,0).text()
-                unit = table.item(i,1).text()
-                description = table.item(i,2).text()
-                try:
-                    quantity = int(table.item(i,3).text())
-                except:
-                    quantity = 0
-                try:
-                    unit_cost = int(table.item(i,4).text())
-                except:
-                    unit_cost = 0
-
-                u = pgso_procurement_data.update().where(pgso_procurement_data.c.id == id).\
-                    values(
-                    description = description,
-                    quantity = quantity,
-                    unit = unit,
-                    unit_cost = unit_cost
-                    )
-                conn.execute(u)
-
-            u = pgso_procurement.update().where(pgso_procurement.c.id == po_id).values(status='po')
-            conn.execute(u)
-
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Information)
-            msg.setText("Inserted")
-            msg.setInformativeText('Data Inserted to the Database')
-            msg.setWindowTitle("PGSO Purchase Order")
-            msg.exec_()
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('Something Went Wrong , Do it Again')
-            msg.setWindowTitle("Error")
-            msg.exec_()
-        self.tabWidget.setCurrentIndex(2)
-
-    def gen_cancel_button_action(self):
-        global gen_tab
-        self.tabWidget.setCurrentIndex(gen_tab)
-
-    ##po
-    def show_po_name(self):
-        self.po_name.clear()
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_department = sqc.Database().pgso_department
-        s = pgso_department.select().where(pgso_department.c.type == self.po_type.currentText())
-        s_value = conn.execute(s)
-        for val in s_value:
-            self.po_name.addItem(val[2])
-
-    po_dict = {}
-    def show_po_list(self):
-        self.po_list.clear()
-        self.po_dict = {}
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_department = sqc.Database().pgso_department
-        s = pgso_department.select().where(pgso_department.c.type == self.po_type.currentText()). \
-            where(pgso_department.c.name == self.po_name.currentText())
-        s_value = conn.execute(s)
-        id = 0
-        for val in s_value:
-            id = val[0]
-
-        pgso_procurement = sqc.Database().pgso_procurement
-        s = pgso_procurement.select().where(pgso_procurement.c.department_id == id).where(pgso_procurement.c.status == 'po')
-        s_value = conn.execute(s)
-
-        for val in s_value:
-            self.po_dict.update({'{}_(#{})_{}'.format(self.po_name.currentText(),val[0],val[2]) : val[0]})
-
-        for key in self.po_dict.keys():
-            self.po_list.addItem(key)
-
-    def po_generate_po_action(self):
-        excel = win32com.client.DispatchEx('Excel.Application')
-        scbk = excel.Workbooks.Open(os.getcwd() +'\\template\\PO.xlsx',ReadOnly = True)
-        scsht = scbk.Worksheets[1]
-        excel.Visible = True
-        lrow = find_cell(scsht, '', search_order='by_row', search_sheet='basic')['row']
-        lcol = find_cell(scsht, '', search_order='by_col', search_sheet='basic')['col']
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_procurement_data = sqc.Database().pgso_procurement_data
-        s = pgso_procurement_data.select()
-        s_value = conn.execute(s)
-        for val in s_value:
-            range_insert = scsht.Range("A15:L15")
-            range_insert.EntireRow.Insert()
-
-        s_value = conn.execute(s)
-        i = 1
-        row = 15
-        for val in s_value:
-            scsht.Cells(row,1).Value = i
-            scsht.Cells(row,2).Value = val[3]
-            scsht.Cells(row,3).Value = val[2]
-            scsht.Cells(row,4).Value = val[1]
-            scsht.Cells(row, 4).HorizontalAlignment = xlwings.constants.HAlign.xlHAlignLeft
-            scsht.Cells(row, 4).WrapText = False
-            scsht.Cells(row,9).Value = val[4]
-            scsht.Cells(row,11).Formula = '=C{} * I{}'.format(row,row)
-            row += 1
-            i += 1
-        p = inflect.engine()
-        date_index = find_cell(scsht,'Date:',lrow=lrow,lcol=lcol)
-        scsht.Cells(date_index['row'],date_index['col'] + 1).Value = datetime.datetime.now()
-        scsht.Cells(date_index['row'],date_index['col'] + 1).HorizontalAlignment = xlwings.constants.HAlign.xlHAlignCenter
-        scsht.Cells(date_index['row'], date_index['col'] + 1).Columns.AutoFit()
-        purpose_remarks = find_cell(scsht,'Conforme:',lrow=3000,lcol=lcol)
-        scsht.Range('I'+ str(purpose_remarks['row'] -4)).Formula = '=SUM(K16:K{})'.format(purpose_remarks['row']-1)
-        scsht.Range('A'+ str(purpose_remarks['row'] -4)).Value = p.number_to_words(float(str(scsht.Range('I'+ str(purpose_remarks['row'] -4)).Value)))
-
-    def po_generate_pr_action(self):
-        excel = win32com.client.DispatchEx('Excel.Application')
-        scbk = excel.Workbooks.Open(os.getcwd() +'\\template\\PR.xlsx',ReadOnly = True)
-        scsht = scbk.Worksheets[1]
-        excel.Visible = True
-        lrow = find_cell(scsht, '', search_order='by_row', search_sheet='basic')['row']
-        lcol = find_cell(scsht, '', search_order='by_col', search_sheet='basic')['col']
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_procurement_data = sqc.Database().pgso_procurement_data
-        s = pgso_procurement_data.select()
-        s_value = conn.execute(s)
-        for val in s_value:
-            range_insert = scsht.Range("A16:J16")
-            range_insert.EntireRow.Insert()
-
-        s_value = conn.execute(s)
-        i = 1
-        row = 16
-        for val in s_value:
-            scsht.Cells(row,1).Value = i
-            scsht.Cells(row,2).Value = val[3]
-            scsht.Cells(row,3).Value = val[1]
-            scsht.Cells(row, 3).HorizontalAlignment = xlwings.constants.HAlign.xlHAlignLeft
-            scsht.Cells(row,8).Value = val[2]
-            scsht.Cells(row,9).Value = val[4]
-            scsht.Cells(row,10).Formula = '=H{} * I{}'.format(row,row)
-            row += 1
-            i += 1
-
-        department_index = find_cell(scsht,'Department : ',lrow=lrow,lcol=lcol)
-        purpose_remarks = find_cell(scsht,'Purpose/Remarks :',lrow=3000,lcol=lcol)
-        scsht.Cells(department_index['row'],department_index['col'] + 2).Value = self.po_name.currentText()
-        scsht.Cells(purpose_remarks['row'],purpose_remarks['col']).Value = 'Purpose/Remarks : For {} Use.'.format(self.po_type.currentText())
-        scsht.Cells(purpose_remarks['row'],purpose_remarks['col'] + 2).Value = 'For {} use.'.format(self.po_name.currentText())
-        scsht.Cells(purpose_remarks['row'] -1,purpose_remarks['col'] + 8).Formula = '=SUM(J16:J{})'.format(purpose_remarks['row']-2)
-
-    def po_edit_action(self):
-        global gen_tab
-        gen_tab = 5
+    def menu_library_action(self):
         self.tabWidget.setCurrentIndex(4)
-        temp = self.po_list.currentItem().text()
-        temp2 = temp.split('(')[0] +temp.split(')')[1]
-        self.gen_title.setText(temp2)
-        po_id = self.po_dict[self.po_list.currentItem().text()]
-        engine = sqc.Database().engine
-        conn = engine.connect()
-        pgso_procurement_data = sqc.Database().pgso_procurement_data
-        s = pgso_procurement_data.select().where(pgso_procurement_data.c.po_id == po_id).order_by(pgso_procurement_data.c.description)
-        s_value = conn.execute(s)
-        table = self.gen_table_widget
-        table.setRowCount(0)
-        for val in s_value :
-            row_position = table.rowCount()
-            table.insertRow(row_position)
-            table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-            table.setItem(row_position, 1, QTableWidgetItem(str(val[3])))
-            table.setItem(row_position, 2, QTableWidgetItem(str(val[1])))
-            table.setItem(row_position, 3, QTableWidgetItem(str(val[2])))
-            table.setItem(row_position, 4, QTableWidgetItem(str(val[4])))
-            table.resizeColumnsToContents()
-            table.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
+        self.library_tab_refresh()
 
-    def po_delete_action(self):
-        try:
-            po_id = self.po_dict[self.po_list.currentItem().text()]
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_procurement = sqc.Database().pgso_procurement
-            s = pgso_procurement.delete().where(pgso_procurement.c.id == po_id)
-            conn.execute(s)
-            pgso_procurement_data = sqc.Database().pgso_procurement_data
-            s = pgso_procurement_data.delete().where(pgso_procurement_data.c.po_id == po_id)
-            conn.execute(s)
-            os.remove(os.getcwd() + '\\excel\\' + str(self.po_dict[self.po_list.currentItem().text()]) + '.xlsx')
-            self.show_po_list()
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Information)
-            msg.setText("Success")
-            msg.setInformativeText('File Deleted Properly')
-            msg.setWindowTitle("Information")
-            msg.exec_()
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('Something went wrong in file deletion')
-            msg.setWindowTitle("Error")
-            msg.exec_()
+    def library_tab_refresh(self):
+        self.library_tab.setCurrentIndex(0)
+        ##government publication clear data fields
+        self.govpub_ordinance.setText('')
+        self.govpub_ordinance_num.setText('0')
+        self.govpub_title.setText('')
+        self.govpub_author_list.clear()
+        self.govpub_subject.setText('')
+        self.govpub_department.setText('')
+        self.govpub_place_issued.setText('')
+        self.govpub_date_issued.setText('')
+        self.govpub_date_recieved.setText('')
+        self.govpub_description.setPlainText('')
+        self.govpub_upload_list.clear()
+        ##localhistory clear data fields
+        self.lochis_title.setText('')
+        self.lochis_source.setText('')
+        self.lochis_author_list.clear()
+        self.lochis_subject.setText('')
+        self.lochis_pages.setText('')
+        self.lochis_description.setPlainText('')
+        self.lochis_upload_list.clear()
+        ##periodicals clear data fields
+        self.periodicals_title.setText('')
+        self.periodicals_subject.setText('')
+        self.periodicals_author_list.clear()
+        self.periodicals_volume.setText('')
+        self.periodicals_number.setText('0')
+        self.periodicals_issn.setText('')
+        self.periodicals_number_of_pages.setText('0')
+        self.periodicals_pubdate.setText('')
+        self.periodicals_description.setPlainText('')
+        self.periodicals_upload_list.clear()
+        ##audiobook clear data fields
+        self.audiobook_title.setText('')
+        self.audiobook_subject.setText('')
+        self.audiobook_author_list.clear()
+        self.audiobook_no_of_copies.setText('0')
+        self.audiobook_series.setText('')
+        self.audiobook_length.setText('0')
+        self.audiobook_width.setText('0')
+        self.audiobook_description.setPlainText('')
+        self.audiobook_upload_list.clear()
 
+    def library_govpub_action(self):
+        self.library_tab_refresh()
+        self.library_tab.setCurrentIndex(1)
 
+    def library_lochis_action(self):
+        self.library_tab_refresh()
+        self.library_tab.setCurrentIndex(2)
 
-    ##settings
+    def library_periodicals_action(self):
+        self.library_tab_refresh()
+        self.library_tab.setCurrentIndex(3)
+
+    def library_audiobook_action(self):
+        self.library_tab_refresh()
+        self.library_tab.setCurrentIndex(4)
+
+    ##SETTINGS
     def show_settings(self):
+        #accounts
+        self.tabWidget.setCurrentIndex(5)
         self.settings_account_table.setRowCount(0)
         engine = sqc.Database().engine
-        pgso_admin = sqc.Database().pgso_admin
+        library_admin = sqc.Database().library_admin
         conn= engine.connect()
-        #admin_table
-        s = pgso_admin.select().order_by(asc(pgso_admin.c.username))
+        s = library_admin.select().order_by(asc(library_admin.c.username))
         s_value = conn.execute(s)
         table = self.settings_account_table
         for val in s_value:
@@ -861,19 +724,12 @@ class MainApp(QMainWindow,ui):
             table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
             table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
             table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
-
-        self.settings_department_table.setRowCount(0)
-        pgso_department = sqc.Database().pgso_department
-        # admin_table
-        s = pgso_department.select().order_by(asc(pgso_department.c.type))
+        #sharedrive
+        library_sharedrive = sqc.Database().library_sharedrive
+        s = library_sharedrive.select()
         s_value = conn.execute(s)
-        table = settings_department_table
         for val in s_value:
-            row_position = table.rowCount()
-            table.insertRow(row_position)
-            table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-            table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
-            table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
+            self.settings_sharedrive_loc.setText(str(val[1]))
 
     def settings_edit_account_action(self, table):
         try:
@@ -906,8 +762,8 @@ class MainApp(QMainWindow,ui):
             id = table.item(r, 0).text()
             engine = sqc.Database().engine
             conn = engine.connect()
-            pgso_admin = sqc.Database().pgso_admin
-            s = pgso_admin.delete().where(pgso_admin.c.userid == id)
+            library_admin = sqc.Database().library_admin
+            s = library_admin.delete().where(library_admin.c.userid == id)
             conn.execute(s)
             conn.close()
             self.show_settings()
@@ -919,150 +775,812 @@ class MainApp(QMainWindow,ui):
             msg.setWindowTitle("Error")
             msg.exec_()
 
-    def settings_edit_department_action(self, table):
-        try:
-            r = table.currentRow()
-            id = table.item(r, 0).text()
-            type = table.item(r, 1).text()
-            name = table.item(r, 2).text()
-            ad = Department_Dialogue(self)
-            ad.show()
-            ad.ShowDialogue(id, type, name, operationType='edit')
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('No Rows Selected')
-            msg.setWindowTitle("Error")
-            msg.exec_()
-
-    def settings_add_department_action(self):
-        try:
-            ad = Department_Dialogue(self)
-            ad.show()
-            ad.ShowDialogue(id, '', '', operationType='add')
-        except:
-            pass
-
-    def settings_delete_department_action(self, table):
-        try:
-            r = table.currentRow()
-            id = table.item(r, 0).text()
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_department = sqc.Database().pgso_department
-            s = pgso_department.delete().where(pgso_department.c.id == id)
-            conn.execute(s)
-            conn.close()
-            self.show_settings()
-        except:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error")
-            msg.setInformativeText('No Rows Selected')
-            msg.setWindowTitle("Error")
-            msg.exec_()
-
-    #price_list
-    def show_price_list(self):
-        global price_list_table
-        price_list_table.setRowCount(0)
+    def settings_edit_sharedrive_action(self):
+        file = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
         engine = sqc.Database().engine
-        pgso_price_list = sqc.Database().pgso_price_list
-        conn= engine.connect()
-        #admin_table
-        s = pgso_price_list.select().order_by(asc(pgso_price_list.c.item))
-        s_value = conn.execute(s)
-        table = price_list_table
-        for val in s_value:
-            row_position = table.rowCount()
-            table.insertRow(row_position)
-            table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-            table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
-            table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
-            table.resizeColumnsToContents()
-        conn.close()
+        conn = engine.connect()
+        library_sharedrive = sqc.Database().library_sharedrive
 
-    def price_list_search_action(self):
-        global price_list_table
-        price_list_table.setRowCount(0)
-        engine = sqc.Database().engine
-        pgso_price_list = sqc.Database().pgso_price_list
-        conn= engine.connect()
-        #admin_table
-        s = pgso_price_list.select().order_by(asc(pgso_price_list.c.item))
-        s_value = conn.execute(s)
-        table = price_list_table
-        if self.price_list_search.text() == '':
-            for val in s_value:
-                row_position = table.rowCount()
-                table.insertRow(row_position)
-                table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-                table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
-                table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
-                table.resizeColumnsToContents()
+        s = library_sharedrive.update().where(library_sharedrive.c.sdid == 1).\
+            values(sharedrive = '{}/archive_data'.format(file))
+
+        conn.execute(s)
+        self.show_settings()
+
+    ##govpub
+    def govpub_add_author_action(self):
+        item = QtWidgets.QListWidgetItem('---')
+        item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+        self.govpub_author_list.addItem(item)
+
+    govpub_upload_list_dictionary = {}
+    def govpub_upload_action(self):
+        self.govpub_upload_list_dictionary= {}
+        self.govpub_upload_list.clear()
+        self.govpub_upload_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        image_files, _ = QFileDialog.getOpenFileNames(self, "Open Images",
+                                                      '',
+                                                      "Image File (*.jpg *.png)", options=options)
+        for image_file in image_files:
+            temp = image_file.split('/')
+            self.govpub_upload_list_dictionary.update({temp[len(temp) - 1]: image_file})
+            self.govpub_upload_list.addItem(temp[len(temp) - 1])
+
+    def govpub_save_button_action(self):
+        if self.govpub_upload_list.count() > 0:
+            if len(self.govpub_title.text()) > 1:
+                dir = self.settings_sharedrive_loc.text()
+                alias = str(self.govpub_title.text() + '_govpub').replace('-', '_').replace(' ', '_').lower()
+                try:
+                    os.makedirs(dir)
+                except:
+                    print('directory already exists.')
+
+                ## ERROR MESSAGES
+                error_message = ''
+                is_insert_db = True
+                try:
+                    temp = float(self.govpub_ordinance_num.text())
+                except:
+                    is_insert_db = False
+                    error_message = 'Ordinance Number should be number'
+
+                try:
+                    author_string = ''
+                    if len(self.govpub_author_list) > 0:
+                        for i in range(0,self.govpub_author_list.count()):
+                            author_string += ', ' + self.govpub_author_list.item(i).text()
+                    else:
+                        is_insert_db = False
+                        error_message = 'Add an Author'
+                except:
+                    is_insert_db = False
+                    error_message = 'Add an Author'
+
+
+                try:
+                    date_issued = datetime.datetime.strptime(self.govpub_date_issued.text(),'%m/%d/%Y')
+                    date_issued_utc = date_issued.replace(tzinfo=timezone('UTC'))
+                except:
+                    is_insert_db = False
+                    error_message = 'Date Issued not in proper format/ value'
+
+                try:
+                    date_recieved = datetime.datetime.strptime(self.govpub_date_recieved.text(),'%m/%d/%Y')
+                    date_recieved_utc = date_recieved.replace(tzinfo=timezone('UTC'))
+                except:
+                    is_insert_db = False
+                    error_message = 'Date Recieved not in proper format / value'
+
+                ##PDF CONVERSION
+                if is_insert_db:
+                    try:
+                        pdf = FPDF()
+                        for i in range(self.govpub_upload_list.count()):
+                            imageFile = self.govpub_upload_list_dictionary[self.govpub_upload_list.item(i).text()]
+                            cover = Image.open(imageFile)
+                            width, height = cover.size
+                            width, height = float(width * 0.264583), float(height * 0.264583)
+                            pdf_size = {'P': {'w': 210, 'h': 297}, 'L': {'w': 297, 'h': 210}}
+                            orientation = 'P' if width < height else 'L'
+                            width = width if width < pdf_size[orientation]['w'] else pdf_size[orientation]['w']
+                            height = height if height < pdf_size[orientation]['h'] else pdf_size[orientation]['h']
+                            pdf.add_page(orientation=orientation)
+                            pdf.image(imageFile, 0, 0, width, height)
+
+                        pdf.output(dir+'/'+alias+'.pdf',"F")
+                    except:
+                        is_insert_db = False
+                        error_message = 'Pdf Conversion Failed'
+
+                ##connection to the database
+                if is_insert_db:
+                    engine = sqc.Database().engine
+                    conn = engine.connect()
+                    library_publication = sqc.Database().library_publication
+                    s = library_publication.select().where(library_publication.c.alias == alias)
+                    s_value = conn.execute(s)
+                    x = 0
+                    for val in s_value:
+                        x+=1
+                    if x < 1:
+                        ins = library_publication.insert().values(
+                            alias = alias,
+                            ordinance = self.govpub_ordinance.text(),
+                            ordinanceno = self.govpub_ordinance_num.text(),
+                            title = self.govpub_title.text(),
+                            author = author_string,
+                            subject = self.govpub_subject.text(),
+                            department = self.govpub_department.text(),
+                            placeissued = self.govpub_place_issued.text(),
+                            dateissued = date_issued_utc,
+                            daterecieved = date_recieved_utc,
+                            description = self.govpub_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                        conn.execute(ins)
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("Succesfully Inserted to the Dabase!")
+                        msg.setInformativeText('Government Publication Updated')
+                        msg.setWindowTitle("Success")
+                        msg.exec_()
+                        self.library_tab_refresh()
+                    else:
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Critical)
+                        msg.setText("Document Name Error!")
+                        msg.setInformativeText('Document Name Exists')
+                        msg.setWindowTitle("Error")
+                        msg.exec_()
+                else:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText(error_message)
+                    msg.setWindowTitle("Error")
+                    msg.exec_()
+
+            else:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Critical)
+                msg.setText("Error")
+                msg.setInformativeText('Add Title')
+                msg.setWindowTitle("Error")
+                msg.exec_()
         else:
-            for val in s_value:
-                if str(self.price_list_search.text()).lower() in val[1].lower():
-                    row_position = table.rowCount()
-                    table.insertRow(row_position)
-                    table.setItem(row_position, 0, QTableWidgetItem(str(val[0])))
-                    table.setItem(row_position, 1, QTableWidgetItem(str(val[1])))
-                    table.setItem(row_position, 2, QTableWidgetItem(str(val[2])))
-                    table.resizeColumnsToContents()
-    def menu_price_list_action(self):
-        self.tabWidget.setCurrentIndex(7)
-        self.show_price_list()
-
-    def price_list_edit_action(self, table):
-        try:
-            r = table.currentRow()
-            id = table.item(r, 0).text()
-            item = table.item(r, 1).text()
-            price = table.item(r, 2).text()
-            ad = Item_Dialogue(self)
-            ad.show()
-            ad.ShowDialogue(id, item, price, operationType='edit')
-        except:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
             msg.setText("Error")
-            msg.setInformativeText('No Rows Selected')
+            msg.setInformativeText('No Uploads Yet')
             msg.setWindowTitle("Error")
             msg.exec_()
 
-    def price_list_add_action(self):
-        try:
-            ad = Item_Dialogue(self)
-            ad.show()
-            ad.ShowDialogue(id, '', '', operationType='add')
-        except:
-            pass
+    ##lochis
+    def lochis_add_author_action(self):
+        item = QtWidgets.QListWidgetItem('---')
+        item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+        self.lochis_author_list.addItem(item)
 
-    def price_list_delete_action(self, table):
-        try:
-            r = table.currentRow()
-            id = table.item(r, 0).text()
-            engine = sqc.Database().engine
-            conn = engine.connect()
-            pgso_price_list = sqc.Database().pgso_price_list
-            s = pgso_price_list.delete().where(pgso_price_list.c.id == id)
-            conn.execute(s)
-            conn.close()
-            self.show_price_list()
-        except:
+    lochis_upload_list_dictionary = {}
+    def lochis_upload_action(self):
+        self.lochis_upload_list_dictionary= {}
+        self.lochis_upload_list.clear()
+        self.lochis_upload_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        image_files, _ = QFileDialog.getOpenFileNames(self, "Open Images",
+                                                      '',
+                                                      "Image File (*.jpg *.png)", options=options)
+        for image_file in image_files:
+            temp = image_file.split('/')
+            self.lochis_upload_list_dictionary.update({temp[len(temp) - 1]: image_file})
+            self.lochis_upload_list.addItem(temp[len(temp) - 1])
+
+    def lochis_save_button_action(self):
+        if self.lochis_upload_list.count() > 0:
+            if len(self.lochis_title.text()) > 1:
+                dir = self.settings_sharedrive_loc.text()
+                alias = str(self.lochis_title.text() + '_lochis').replace('-', '_').replace(' ', '_').lower()
+                try:
+                    os.makedirs(dir)
+                except:
+                    print('directory already exists.')
+
+                ## ERROR MESSAGES
+                error_message = ''
+                is_insert_db = True
+                try:
+                    temp = float(self.lochis_pages.text())
+                except:
+                    is_insert_db = False
+                    error_message = 'Pages should be number'
+
+                try:
+                    author_string = ''
+                    if len(self.lochis_author_list) > 0:
+                        for i in range(0,self.lochis_author_list.count()):
+                            author_string += ', '+ self.lochis_author_list.item(i).text()
+                    else:
+                        is_insert_db = False
+                        error_message = 'Add an Author'
+                except:
+                    is_insert_db = False
+                    error_message = 'Add an Author'
+
+
+                ##PDF CONVERSION
+                if is_insert_db:
+                    try:
+                        pdf = FPDF()
+                        for i in range(self.lochis_upload_list.count()):
+                            imageFile = self.lochis_upload_list_dictionary[self.lochis_upload_list.item(i).text()]
+                            cover = Image.open(imageFile)
+                            width, height = cover.size
+                            width, height = float(width * 0.264583), float(height * 0.264583)
+                            pdf_size = {'P': {'w': 210, 'h': 297}, 'L': {'w': 297, 'h': 210}}
+                            orientation = 'P' if width < height else 'L'
+                            width = width if width < pdf_size[orientation]['w'] else pdf_size[orientation]['w']
+                            height = height if height < pdf_size[orientation]['h'] else pdf_size[orientation]['h']
+                            pdf.add_page(orientation=orientation)
+                            pdf.image(imageFile, 0, 0, width, height)
+
+                        pdf.output(dir+'/'+alias+'.pdf',"F")
+                    except:
+                        is_insert_db = False
+                        error_message = 'Pdf Conversion Failed'
+
+                ##connection to the database
+                if is_insert_db:
+                    engine = sqc.Database().engine
+                    conn = engine.connect()
+                    library_localhistory = sqc.Database().library_localhistory
+                    s = library_localhistory.select().where(library_localhistory.c.alias == alias)
+                    s_value = conn.execute(s)
+                    x = 0
+                    for val in s_value:
+                        x+=1
+                    if x < 1:
+                        ins = library_localhistory.insert().values(
+                            alias = alias,
+                            source = self.lochis_source.text(),
+                            pages = self.lochis_pages.text(),
+                            title = self.lochis_title.text(),
+                            author = author_string,
+                            subject = self.lochis_subject.text(),
+                            description = self.lochis_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                        conn.execute(ins)
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("Succesfully Inserted to the Dabase!")
+                        msg.setInformativeText('Local History Updated')
+                        msg.setWindowTitle("Success")
+                        msg.exec_()
+                        self.library_tab_refresh()
+                    else:
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Critical)
+                        msg.setText("Document Name Error!")
+                        msg.setInformativeText('Document Name Exists')
+                        msg.setWindowTitle("Error")
+                        msg.exec_()
+                else:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText(error_message)
+                    msg.setWindowTitle("Error")
+                    msg.exec_()
+
+            else:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Critical)
+                msg.setText("Error")
+                msg.setInformativeText('Add Title')
+                msg.setWindowTitle("Error")
+                msg.exec_()
+        else:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
             msg.setText("Error")
-            msg.setInformativeText('No Rows Selected')
+            msg.setInformativeText('No Uploads Yet')
             msg.setWindowTitle("Error")
             msg.exec_()
+
+    ##periodicals
+    def periodicals_add_author_action(self):
+        item = QtWidgets.QListWidgetItem('---')
+        item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+        self.periodicals_author_list.addItem(item)
+
+    periodicals_upload_list_dictionary = {}
+    def periodicals_upload_action(self):
+        self.periodicals_upload_list_dictionary= {}
+        self.periodicals_upload_list.clear()
+        self.periodicals_upload_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        image_files, _ = QFileDialog.getOpenFileNames(self, "Open Images",
+                                                      '',
+                                                      "Image File (*.jpg *.png)", options=options)
+        for image_file in image_files:
+            temp = image_file.split('/')
+            self.periodicals_upload_list_dictionary.update({temp[len(temp) - 1]: image_file})
+            self.periodicals_upload_list.addItem(temp[len(temp) - 1])
+
+    def periodicals_save_button_action(self):
+        if self.periodicals_upload_list.count() > 0:
+            if len(self.periodicals_title.text()) > 1:
+                dir = self.settings_sharedrive_loc.text()
+                alias = str(self.periodicals_title.text() + '_periodicals').replace('-', '_').replace(' ', '_').lower()
+                try:
+                    os.makedirs(dir)
+                except:
+                    print('directory already exists.')
+
+                ## ERROR MESSAGES
+                error_message = ''
+                is_insert_db = True
+                try:
+                    temp = float(self.periodicals_number_of_pages.text())
+                except:
+                    is_insert_db = False
+                    error_message = 'Number of Pages should be Integer'
+
+                try:
+                    author_string = ''
+                    if len(self.periodicals_author_list) > 0:
+                        for i in range(0,self.periodicals_author_list.count()):
+                            author_string += ', ' + self.periodicals_author_list.item(i).text()
+                    else:
+                        is_insert_db = False
+                        error_message = 'Add an Author'
+                except:
+                    is_insert_db = False
+                    error_message = 'Add an Author'
+
+
+                try:
+                    periodicals_pubdate = datetime.datetime.strptime(self.periodicals_pubdate.text(),'%m/%d/%Y')
+                    periodicals_pubdate_utc = periodicals_pubdate.replace(tzinfo=timezone('UTC'))
+                except:
+                    is_insert_db = False
+                    error_message = 'Publication Date Wrong Format!'
+
+                ##PDF CONVERSION
+                if is_insert_db:
+                    try:
+                        pdf = FPDF()
+                        for i in range(self.periodicals_upload_list.count()):
+                            imageFile = self.periodicals_upload_list_dictionary[self.periodicals_upload_list.item(i).text()]
+                            cover = Image.open(imageFile)
+                            width, height = cover.size
+                            width, height = float(width * 0.264583), float(height * 0.264583)
+                            pdf_size = {'P': {'w': 210, 'h': 297}, 'L': {'w': 297, 'h': 210}}
+                            orientation = 'P' if width < height else 'L'
+                            width = width if width < pdf_size[orientation]['w'] else pdf_size[orientation]['w']
+                            height = height if height < pdf_size[orientation]['h'] else pdf_size[orientation]['h']
+                            pdf.add_page(orientation=orientation)
+                            pdf.image(imageFile, 0, 0, width, height)
+
+                        pdf.output(dir+'/'+alias+'.pdf',"F")
+                    except:
+                        is_insert_db = False
+                        error_message = 'Pdf Conversion Failed'
+
+                ##connection to the database
+                if is_insert_db:
+                    engine = sqc.Database().engine
+                    conn = engine.connect()
+                    library_periodicals = sqc.Database().library_periodicals
+                    s = library_periodicals.select().where(library_periodicals.c.alias == alias)
+                    s_value = conn.execute(s)
+                    x = 0
+                    for val in s_value:
+                        x+=1
+                    if x < 1:
+                        ins = library_periodicals.insert().values(
+                            alias = alias,
+                            title = self.periodicals_title.text(),
+                            subject = self.periodicals_subject.text(),
+                            author = author_string,
+                            volume = self.periodicals_volume.text(),
+                            periodiclano = self.periodicals_number.text(),
+                            issn = self.periodicals_issn.text(),
+                            noofpages = self.periodicals_number_of_pages.text(),
+                            publicationdate = periodicals_pubdate_utc,
+                            description = self.periodicals_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                        conn.execute(ins)
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("Succesfully Inserted to the Dabase!")
+                        msg.setInformativeText('Periodicals Updated')
+                        msg.setWindowTitle("Success")
+                        msg.exec_()
+                        self.library_tab_refresh()
+                    else:
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Critical)
+                        msg.setText("Document Name Error!")
+                        msg.setInformativeText('Document Name Exists')
+                        msg.setWindowTitle("Error")
+                        msg.exec_()
+                else:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText(error_message)
+                    msg.setWindowTitle("Error")
+                    msg.exec_()
+
+            else:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Critical)
+                msg.setText("Error")
+                msg.setInformativeText('Add Title')
+                msg.setWindowTitle("Error")
+                msg.exec_()
+        else:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error")
+            msg.setInformativeText('No Uploads Yet')
+            msg.setWindowTitle("Error")
+            msg.exec_()
+
+    ##REALIA
+    def audiobook_add_author_action(self):
+        item = QtWidgets.QListWidgetItem('---')
+        item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+        self.audiobook_author_list.addItem(item)
+
+    audiobook_upload_list_dictionary = {}
+    def audiobook_upload_action(self):
+        self.audiobook_upload_list_dictionary= {}
+        self.audiobook_upload_list.clear()
+        self.audiobook_upload_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        image_files, _ = QFileDialog.getOpenFileNames(self, "Open Images",
+                                                      '',
+                                                      "Image File (*.jpg *.png)", options=options)
+        for image_file in image_files:
+            temp = image_file.split('/')
+            self.audiobook_upload_list_dictionary.update({temp[len(temp) - 1]: image_file})
+            self.audiobook_upload_list.addItem(temp[len(temp) - 1])
+
+    def audiobook_save_button_action(self):
+        if self.audiobook_upload_list.count() > 0:
+            if len(self.audiobook_title.text()) > 1:
+                dir = self.settings_sharedrive_loc.text()
+                alias = str(self.audiobook_title.text() + '_realia').replace('-', '_').replace(' ', '_').lower()
+                try:
+                    os.makedirs(dir)
+                except:
+                    print('directory already exists.')
+
+                ## ERROR MESSAGES
+                error_message = ''
+                is_insert_db = True
+
+                try:
+                    temp = float(self.audiobook_length.text())
+                except:
+                    is_insert_db = False
+                    error_message = 'Length should be number!'
+
+                try:
+                    temp = float(self.audiobook_width.text())
+                except:
+                    is_insert_db = False
+                    error_message = 'Width should be number'
+
+                try:
+                    author_string = ''
+                    if len(self.audiobook_author_list) > 0:
+                        for i in range(0,self.audiobook_author_list.count()):
+                            author_string += ', ' + self.audiobook_author_list.item(i).text()
+                    else:
+                        is_insert_db = False
+                        error_message = 'Add an Artist'
+                except:
+                    is_insert_db = False
+                    error_message = 'Add an Artist'
+
+
+                ##PDF CONVERSION
+                if is_insert_db:
+                    try:
+                        pdf = FPDF()
+                        for i in range(self.audiobook_upload_list.count()):
+                            imageFile = self.audiobook_upload_list_dictionary[self.audiobook_upload_list.item(i).text()]
+                            cover = Image.open(imageFile)
+                            width, height = cover.size
+                            width, height = float(width * 0.264583), float(height * 0.264583)
+                            pdf_size = {'P': {'w': 210, 'h': 297}, 'L': {'w': 297, 'h': 210}}
+                            orientation = 'P' if width < height else 'L'
+                            width = width if width < pdf_size[orientation]['w'] else pdf_size[orientation]['w']
+                            height = height if height < pdf_size[orientation]['h'] else pdf_size[orientation]['h']
+                            pdf.add_page(orientation=orientation)
+                            pdf.image(imageFile, 0, 0, width, height)
+
+                        pdf.output(dir+'/'+alias+'.pdf',"F")
+                    except:
+                        is_insert_db = False
+                        error_message = 'Pdf Conversion Failed'
+
+                ##connection to the database
+                if is_insert_db:
+                    engine = sqc.Database().engine
+                    conn = engine.connect()
+                    library_realia = sqc.Database().library_realia
+                    s = library_realia.select().where(library_realia.c.alias == alias)
+                    s_value = conn.execute(s)
+                    x = 0
+                    for val in s_value:
+                        x+=1
+                    if x < 1:
+                        ins = library_realia.insert().values(
+                            alias = alias,
+                            title = self.audiobook_title.text(),
+                            subject = self.audiobook_subject.text(),
+                            length = self.audiobook_length.text(),
+                            width = self.audiobook_width.text(),
+                            dimension = self.audiobook_dimension.text(),
+                            author = author_string,
+                            noofcopies = self.audiobook_no_of_copies.text(),
+                            location = self.audiobook_location.text(),
+                            series = self.audiobook_series.text(),
+                            description = self.govpub_description.toPlainText(),
+                            datearchived = datetime.datetime.utcnow()
+                        )
+                        conn.execute(ins)
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("Succesfully Inserted to the Dabase!")
+                        msg.setInformativeText('REALIA Updated')
+                        msg.setWindowTitle("Success")
+                        msg.exec_()
+                        self.library_tab_refresh()
+                    else:
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Critical)
+                        msg.setText("Document Name Error!")
+                        msg.setInformativeText('Document Name Exists')
+                        msg.setWindowTitle("Error")
+                        msg.exec_()
+                else:
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Critical)
+                    msg.setText("Something Went Wrong!")
+                    msg.setInformativeText(error_message)
+                    msg.setWindowTitle("Error")
+                    msg.exec_()
+
+            else:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Critical)
+                msg.setText("Error")
+                msg.setInformativeText('Add Title')
+                msg.setWindowTitle("Error")
+                msg.exec_()
+        else:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error")
+            msg.setInformativeText('No Uploads Yet')
+            msg.setWindowTitle("Error")
+            msg.exec_()
+
+    ##Archive
+
+
+    def archive_dictionary_refresh(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        engine = sqc.Database().engine
+        conn = engine.connect()
+        library = sqc.Database().library_publication
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_govpub_dict.update({val[4]:
+            {   'pubid' : val[0],
+                'alias' : val[1],
+                'ordinance' : val[2],
+                'ordinanceno' : val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'department': val[7],
+                'placeissued' : val[8],
+                'dateissued' : val[9],
+                'daterecieved' : val[10],
+                'description' : val[11],
+                'datearchived': val[12]} })
+
+        library = sqc.Database().library_localhistory
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_lochis_dict.update({val[4]:
+            {  'id' : val[0],
+                'alias' : val[1],
+                'source': val[2],
+                'pages': val[3],
+                'author' : val[5],
+                'subject' : val[6],
+                'description' : val[7],
+                'datearchived' : val[8]} })
+
+        library = sqc.Database().library_periodicals
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_periodicals_dict.update({val[2]:
+            {
+            'id' : val[0],
+            'alias' : val[1],
+            'subject' : val[3],
+            'author' : val[4],
+            'volume' : val[5],
+            'periodiclano' : val[6],
+            'issn' : val[7],
+            'noofpages' : val[8],
+            'publicationdate' : val[9],
+            'description' : val[10],
+            'datearchived' : val[11]} })
+
+        library = sqc.Database().library_realia
+        s = library.select()
+        s_value = conn.execute(s)
+        for val in s_value:
+            archive_realia_dict.update({val[2]:
+            {
+               'id' : val[0],
+               'alias' : val[1],
+               'subject' : val[3],
+               'length' : val[4],
+               'width' : val[5],
+               'dimension' : val[6],
+               'author' : val[7],
+               'noofcopies' : val[8],
+               'location' : val[9],
+               'series' : val[10],
+               'description' : val[11],
+               'datearchived' : val[12]} })
+
+
+
+
+    def menu_archive_action(self):
+        self.tabWidget.setCurrentIndex(3)
+        self.archive_dictionary_refresh()
+        self.archive_doclist.clear()
+        self.archive_options.setCurrentIndex(0)
+        self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
+
+    def archive_options_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
+        if self.archive_options.currentText() == 'Government Publication':
+            self.archive_doclist.clear()
+            for key in archive_govpub_dict.keys():
+                self.archive_doclist.addItem(key)
+        elif self.archive_options.currentText() == 'Local History':
+            self.archive_doclist.clear()
+            for key in archive_lochis_dict.keys():
+                self.archive_doclist.addItem(key)
+        elif self.archive_options.currentText() == 'Periodicals':
+            self.archive_doclist.clear()
+            for key in archive_periodicals_dict.keys():
+                self.archive_doclist.addItem(key)
+        elif self.archive_options.currentText() == 'REALIA':
+            self.archive_doclist.clear()
+            for key in archive_realia_dict.keys():
+                self.archive_doclist.addItem(key)
+
+    def archive_doclist_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        dir = self.settings_sharedrive_loc.text()
+        if self.archive_options.currentText() == 'Government Publication':
+            alias = archive_govpub_dict[self.archive_doclist.currentItem().text()]['alias']
+        elif self.archive_options.currentText() == 'Local History':
+            alias = archive_lochis_dict[self.archive_doclist.currentItem().text()]['alias']
+        elif self.archive_options.currentText() == 'Periodicals':
+            alias = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['alias']
+        elif self.archive_options.currentText() == 'REALIA':
+            alias = archive_realia_dict[self.archive_doclist.currentItem().text()]['alias']
+
+        path_to_pdf = os.path.abspath(dir+'\\'+alias+'.pdf')
+        if os.path.exists(path_to_pdf):
+            self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, path_to_pdf)))
+        else:
+            self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF_NOIMAGE)))
+
+    def archive_info_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        try:
+            if self.archive_options.currentText() == 'Government Publication':
+                id = archive_govpub_dict[self.archive_doclist.currentItem().text()]['pubid']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id),'govpub', operationType='view')
+            elif self.archive_options.currentText() == 'Local History':
+                id = archive_lochis_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'lochis', operationType='view')
+            elif self.archive_options.currentText() == 'Periodicals':
+                id = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'periodicals', operationType='view')
+            elif self.archive_options.currentText() == 'REALIA':
+                id = archive_realia_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'audiobook', operationType='view')
+        except:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Something Went Wrong!")
+            msg.setInformativeText('No Selection Made')
+            msg.setWindowTitle("Error")
+            msg.exec_()
+
+    def archive_update_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        try:
+            if self.archive_options.currentText() == 'Government Publication':
+                id = archive_govpub_dict[self.archive_doclist.currentItem().text()]['pubid']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id),'govpub', operationType='edit')
+            elif self.archive_options.currentText() == 'Local History':
+                id = archive_lochis_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'lochis', operationType='edit')
+            elif self.archive_options.currentText() == 'Periodicals':
+                id = archive_periodicals_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'periodicals', operationType='edit')
+            elif self.archive_options.currentText() == 'REALIA':
+                id = archive_realia_dict[self.archive_doclist.currentItem().text()]['id']
+                d = Info_Dialogue(self)
+                d.show()
+                d.ShowDialogue(int(id), 'audiobook', operationType='edit')
+        except:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Something Went Wrong!")
+            msg.setInformativeText('No Selection Made')
+            msg.setWindowTitle("Error")
+            msg.exec_()
+
+
+
+
+    @QtCore.pyqtSlot(QtWebEngineWidgets.QWebEngineDownloadItem)
+    def on_download_request(self,download):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "sample.pdf", "*.pdf")
+        if path:
+            download.setPath(path)
+            download.accept()
+
+
 
 def main():
-    app=QApplication(sys.argv)
-    window=MainApp()
+    app = QApplication(sys.argv)
+    window = MainApp()
     window.show()
     app.exec_()
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     main()
