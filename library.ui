@@ -95,7 +95,7 @@ border-top-right-radius : 14;</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset resource="../archive-system/icons.qrc">
+             <iconset resource="icons.qrc">
               <normaloff>:/icons/SORSOGON.png</normaloff>
               <disabledoff>:/icons/SORSOGON.png</disabledoff>:/icons/SORSOGON.png</iconset>
             </property>
@@ -335,7 +335,7 @@ border-top-right-radius : 14;</string>
                   <string/>
                  </property>
                  <property name="icon">
-                  <iconset resource="../archive-system/icons.qrc">
+                  <iconset resource="icons.qrc">
                    <normaloff>:/icons/SORSOGON.png</normaloff>
                    <disabledoff>:/icons/SORSOGON.png</disabledoff>:/icons/SORSOGON.png</iconset>
                  </property>
@@ -743,7 +743,7 @@ border-radius : 10;</string>
                   <string/>
                  </property>
                  <property name="icon">
-                  <iconset resource="../archive-system/icons.qrc">
+                  <iconset resource="icons.qrc">
                    <normaloff>:/icons/SORSOGON.png</normaloff>
                    <disabledoff>:/icons/SORSOGON.png</disabledoff>:/icons/SORSOGON.png</iconset>
                  </property>
@@ -843,7 +843,7 @@ border-radius : 10;</string>
                      <number>0</number>
                     </property>
                     <item>
-                     <widget class="QLineEdit" name="login_username_3">
+                     <widget class="QLineEdit" name="archive_search">
                       <property name="minimumSize">
                        <size>
                         <width>0</width>
@@ -1070,7 +1070,7 @@ border-radius : 14</string>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QWebEngineView" name="archive_web_engine">
+                  <widget class="QWebEngineView" name="archive_web_engine" native="true">
                    <property name="sizePolicy">
                     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                      <horstretch>0</horstretch>
@@ -1086,7 +1086,7 @@ border : 1 solid gray;
 border-radius : 10;
 font: 25 10pt &quot;Segoe UI Light&quot;;</string>
                    </property>
-                   <property name="url">
+                   <property name="url" stdset="0">
                     <url>
                      <string>about:blank</string>
                     </url>
@@ -5527,9 +5527,8 @@ border-radius : 14</string>
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="../archive-system/icons.qrc"/>
   <include location="icons.qrc"/>
-  <include location="../payroll-system/icons.qrc"/>
+  <include location="icons.qrc"/>
  </resources>
  <connections/>
 </ui>

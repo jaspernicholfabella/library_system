@@ -594,6 +594,7 @@ class MainApp(QMainWindow, ui):
         self.archive_doclist.doubleClicked.connect(self.archive_doclist_action)
         self.archive_info.clicked.connect(self.archive_info_action)
         self.archive_update.clicked.connect(self.archive_update_action)
+        self.archive_search.textChanged.connect(self.archive_search_action)
         QtWebEngineWidgets.QWebEngineProfile.defaultProfile().downloadRequested.connect(self.on_download_request)
 
     def home_admin_login_action(self):
@@ -1473,6 +1474,52 @@ class MainApp(QMainWindow, ui):
             self.archive_doclist.clear()
             for key in archive_realia_dict.keys():
                 self.archive_doclist.addItem(key)
+        
+    def archive_search_action(self):
+        global archive_govpub_dict
+        global archive_lochis_dict
+        global archive_periodicals_dict
+        global archive_realia_dict
+        self.archive_web_engine.load(QtCore.QUrl.fromUserInput('%s?file=%s' % (self.PDFJS, self.PDF)))
+        if self.archive_options.currentText() == 'Government Publication':
+            self.archive_doclist.clear()
+            if self.archive_search.text() == '':
+                for key in archive_govpub_dict.keys():
+                    self.archive_doclist.addItem(key)
+            else:
+                
+                for key in archive_govpub_dict.keys():
+                    if str(self.archive_search.text()).lower() in key:
+                        self.archive_doclist.addItem(key)
+        
+        elif self.archive_options.currentText() == 'Local History':
+            self.archive_doclist.clear()
+            if self.archive_search.text() == '':
+                for key in archive_lochis_dict.keys():
+                    self.archive_doclist.addItem(key)
+            else:
+                for key in archive_lochis_dict.keys():
+                    if str(self.archive_search.text()).lower() in key:
+                        self.archive_doclist.addItem(key)
+
+        elif self.archive_options.currentText() == 'Periodicals':
+            self.archive_doclist.clear()
+            if self.archive_search.text() == '':
+                for key in archive_periodicals_dict.keys():
+                    self.archive_doclist.addItem(key)
+            else:
+                for key in archive_periodicals_dict.keys():
+                    if str(self.archive_search.text()).lower() in key:
+                        self.archive_doclist.addItem(key)
+        elif self.archive_options.currentText() == 'REALIA':
+            self.archive_doclist.clear()
+            if self.archive_search.text() == '':
+                for key in archive_realia_dict.keys():
+                    self.archive_doclist.addItem(key)
+            else:
+                for key in archive_realia_dict.keys():
+                    if str(self.archive_search.text()).lower() in key:
+                        self.archive_doclist.addItem(key)
 
     def archive_doclist_action(self):
         global archive_govpub_dict
